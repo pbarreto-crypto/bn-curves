@@ -1,0 +1,19 @@
+[package]
+name = "bn-curves"
+version = "0.1.0"
+edition = "2021"
+authors = ["Paulo L. Barreto"]
+license = "MIT OR Apache-2.0"
+description = "A framework for pairing-based cryptography using BN curves"
+readme = "README.md"
+homepage = "https://github.com/pbarreto-crypto"
+repository = "https://github.com/pbarreto-crypto/bn-curves"
+keywords = ["bilinear-pairings", "BN-curves", "Barreto-Naehrig"]
+categories = ["algorithms", "cryptography"]
+
+[dependencies]
+crypto-bigint = { version = "0.7.0-rc.0", features = ["alloc"] }
+rand = "0.9.2"
+sha3 = "0.11.0-rc.0"
+
+[lib]
