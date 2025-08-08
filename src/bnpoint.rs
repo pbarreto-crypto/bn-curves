@@ -10,6 +10,7 @@ use rand::Rng;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use crypto_bigint::rand_core::TryRngCore;
+use crate::bnzn::BNZn;
 
 pub struct BNPoint<BN: BNParam, const LIMBS: usize> {
     pub(crate) x: BNFp<BN, LIMBS>,
@@ -72,7 +73,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint<BN, LIMBS> {
 
     /// Create an instance of the default generator of <i>n</i>-torsion <i>G&#x2081; := (-1, 1)</i>
     /// on a BN curve <i>E/<b>F</b><sub>p</sub>: Y&sup2;Z = X&sup3; + bZ&sup3;</i>.
-    pub fn gen() -> Self {
+    pub fn default_generator() -> Self {
         Self::new(-BNFp::one(), Choice::from(1))
     }
 
@@ -80,7 +81,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint<BN, LIMBS> {
     /// <i><b>G</b>&#x2081; := E&lbrack;n&rbrack;(<b>F</b><sub>p</sub>)</i>
     /// of a BN curve <i>E/<b>F</b><sub>p</sub>: Y&sup2;Z = X&sup3; + bZ&sup3;</i>
     /// with SHAKE-256.
-    pub fn sha256(data: &[u8]) -> Self {
+    pub fn shake256(data: &[u8]) -> Self {
         Self::point_factory(BNFp::shake256(data))
     }
 
@@ -172,7 +173,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint<BN, LIMBS> {
     /// Lecture Notes in Computer Science, vol. 4076, pp. 510--524, 2006.
     /// Springer, Berlin Heidelberg, 2006.
     /// https://doi.org/10.1007/11792086_36
-    pub(crate) fn point_factory(t: BNFp<BN, LIMBS>) -> BNPoint<BN, LIMBS> {
+    pub fn point_factory(t: BNFp<BN, LIMBS>) -> BNPoint<BN, LIMBS> {
         let one = BNFp::one();
         let b = BNFp::from_word(BN::CURVE_B);
         let sqrt_m3: BNFp<BN, LIMBS> = BNFp::from_uint(Uint::from_words(<[Word; LIMBS]>::try_from(BN::SQRT_NEG_3).unwrap()));
@@ -383,6 +384,16 @@ impl<BN: BNParam, const LIMBS: usize> Mul<BNPoint<BN, LIMBS>> for Uint<LIMBS> {
     fn mul(self, point: BNPoint<BN, LIMBS>) -> Self::Output {
         let mut v = point;
         v *= self;
+        v
+    }
+}
+
+impl<BN: BNParam, const LIMBS: usize> Mul<BNPoint<BN, LIMBS>> for BNZn<BN, LIMBS> {
+    type Output = BNPoint<BN, LIMBS>;
+
+    fn mul(self, point: BNPoint<BN, LIMBS>) -> Self::Output {
+        let mut v = point;
+        v *= self.to_uint();
         v
     }
 }

@@ -7,4 +7,5 @@ pub mod bnpairing;
 pub mod bnparam;
 pub mod bnpoint;
 pub mod bnpoint2;
+pub mod bnzn;
 pub mod traits;

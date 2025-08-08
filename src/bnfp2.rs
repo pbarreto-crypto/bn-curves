@@ -64,6 +64,16 @@ impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
         }
     }
 
+    /// Convert `self` to serialized (byte array) representation.
+    #[inline]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut rev = self.re.to_bytes();
+        let mut imv = self.im.to_bytes();
+        rev.append(&mut imv);
+        rev
+    }
+
+    /// Compute the value of twice this element.
     #[inline]
     pub(crate) fn double(&self) -> Self {
         Self {
@@ -72,6 +82,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
         }
     }
 
+    /// Compute the value of half this element.
     #[inline]
     pub(crate) fn half(&self) -> Self {
         Self {
@@ -86,6 +97,21 @@ impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
         Self {
             re: BNFp::zero(),
             im: BNFp::one(),
+        }
+    }
+
+    /// Hash input data into a base field element with SHAKE-128.
+    ///
+    /// Twice as much hash output is converted to the field element via Montgomery reduction.
+    /// This ensures the deviation from uniform sampling over <b>F</b><sub><i>p</i></sub>
+    /// is upper-bounded by <i>p&#8315;&sup1;</i>, well below the target
+    /// adversary advantage <i>O(p<sup>-&frac12;</sup>)</i>.
+    #[inline]
+    pub fn shake128(data: &[u8]) -> Self {
+        let (re, im) = BNFp::shake128pair(data);
+        Self {
+            re,
+            im,
         }
     }
 

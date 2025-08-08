@@ -38,6 +38,7 @@ pub type BN766Fp4 = BNFp4<BN766Param, 12>;
 
 impl<BN: BNParam, const LIMBS: usize> BNFp4<BN, LIMBS> {
     /// Map an <b>F</b><sub><i>p&sup2;</i></sub> element to its <b>F</b><sub><i>p&#x2074;</i></sub> counterpart.
+    #[inline]
     pub(crate) fn from_base(re: BNFp2<BN, LIMBS>) -> Self {
         Self {
             re,
@@ -47,6 +48,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp4<BN, LIMBS> {
 
     /// Assemble an <b>F</b><sub><i>p&#x2074;</i></sub> element
     /// from its <b>F</b><sub><i>p&sup2;</i></sub> components.
+    #[inline]
     pub(crate) fn from(re: BNFp2<BN, LIMBS>, im: BNFp2<BN, LIMBS>) -> Self {
         Self {
             re,
@@ -54,6 +56,16 @@ impl<BN: BNParam, const LIMBS: usize> BNFp4<BN, LIMBS> {
         }
     }
 
+    /// Convert `self` to serialized (byte array) representation.
+    #[inline]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut rev = self.re.to_bytes();
+        let mut imv = self.im.to_bytes();
+        rev.append(&mut imv);
+        rev
+    }
+
+    /// Compute the value of twice this element.
     #[inline]
     pub(crate) fn double(&self) -> Self {
         Self {
@@ -62,6 +74,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp4<BN, LIMBS> {
         }
     }
 
+    /// Compute the value of half this element.
     #[inline]
     pub(crate) fn half(&self) -> Self {
         Self {

@@ -43,6 +43,7 @@ pub type BN766Fp12 = BNFp12<BN766Param, 12>;
 
 impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     /// Map an <b>F</b><sub><i>p&sup2;</i></sub> element to its <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> counterpart.
+    #[inline]
     pub(crate) fn from_base(v0: BNFp2<BN, LIMBS>) -> Self {
         Self {
             v0, v1: BNFp2::zero(), v2: BNFp2::zero(), v3: BNFp2::zero(), v4: BNFp2::zero(), v5: BNFp2::zero()
@@ -50,20 +51,25 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     }
 
     /// Assemble an <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element from its components.
+    #[inline]
     pub(crate) fn from(v: [BNFp2<BN, LIMBS>; 6]) -> Self {
         Self {
             v0: v[0], v1: v[1], v2: v[2], v3: v[3], v4: v[4], v5: v[5],
         }
     }
 
-    pub(crate) fn double(&self) -> Self {
+    /// Compute the value of twice this element.
+    #[inline]
+    pub fn double(&self) -> Self {
         Self {
             v0: self.v0.double(), v1: self.v1.double(), v2: self.v2.double(),
             v3: self.v3.double(), v4: self.v4.double(), v5: self.v5.double(),
         }
     }
 
-    pub(crate) fn half(&self) -> Self {
+    /// Compute the value of half this element.
+    #[inline]
+    pub fn half(&self) -> Self {
         Self {
             v0: self.v0.half(), v1: self.v1.half(), v2: self.v2.half(),
             v3: self.v3.half(), v4: self.v4.half(), v5: self.v5.half(),
@@ -71,7 +77,8 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     }
 
     /// Compute <i>`self`&#x1D56;</i> in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
-    pub(crate) fn frob(&self) -> Self {
+    #[inline]
+    pub fn frob(&self) -> Self {
         let zeta0 = BNFp::from_words(<[Word; LIMBS]>::try_from(BN::ZETA).unwrap());
         let zeta1 = -(zeta0 + BNFp::one());
         let theta = BNFp::from_words(<[Word; LIMBS]>::try_from(BN::THETA).unwrap());
@@ -88,7 +95,8 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     /// Compute <i>`self`</i><sup>(<i>p&sup2;</i>)<i>&#x1D50;</i></sup>,
     /// the <i>m</i>-th conjugate in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> of `self`
     /// over <i><b>F</b><sub>p&sup2;</sub></i>, for <i>0 &leq; m &lt; 6</i>.
-    pub(crate) fn conj(&self, m: usize) -> Self {
+    #[inline]
+    pub fn conj2(&self, m: usize) -> Self {
         /*
          * z^(p^2)  = -zeta*z
          * z^(p^4)  = -(zeta+1)*z = zeta^2*z
@@ -142,7 +150,8 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     }
 
     /// Compute the <b>F</b><sub><i>p&#x2074;</i></sub>-norm of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element.
-    pub(crate) fn norm4(&self) -> BNFp4<BN, LIMBS> {
+    #[inline]
+    pub fn norm4(&self) -> BNFp4<BN, LIMBS> {
         // w = w0 + w1*z + w2*z^2
 
         // w         = w0 + w1*z       + w2*z^2
@@ -185,12 +194,14 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     }
 
     /// Compute the <b>F</b><sub><i>p&#x2074;</i></sub>-trace of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element.
-    pub(crate) fn tr(&self) -> BNFp4<BN, LIMBS> {
+    #[inline]
+    pub fn tr4(&self) -> BNFp4<BN, LIMBS> {
         3*BNFp4::from(self.v0, self.v3)
     }
 
     /// Compute the square of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element.
-    pub(crate) fn sq(self) -> Self {
+    #[inline]
+    pub fn sq(self) -> Self {
         // Karatsuba multiplication:
 
         let d_00 = self.v0.sq();
@@ -231,13 +242,15 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     }
 
     /// Compute the cube of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element.
-    pub(crate) fn cb(self) -> Self {
+    #[inline]
+    pub fn cb(self) -> Self {
         self.sq()*self
     }
 
     /// Compute the inverse of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element
     /// (or 0, if this element is itself 0).
-    pub(crate) fn inv(&self) -> Self {
+    #[inline]
+    pub fn inv(&self) -> Self {
         // w = w0 + w1*z + w2*z^2
         // split this Fp12 element into its Fp4 components:
         let w0 = BNFp4::from(self.v0, self.v3);
@@ -249,7 +262,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         let c0 = w0.sq() - w1*w2.mul_tau();
         let c1 = w2.sq().mul_tau() - w0*w1;
         let c2 = w1.sq() - w2*w0;
-        assert_eq!(self.conj(2)*self.conj(4), Self::from([c0.re, c1.re, c2.re, c0.im, c1.im, c2.im]));
+        assert_eq!(self.conj2(2)*self.conj2(4), Self::from([c0.re, c1.re, c2.re, c0.im, c1.im, c2.im]));
 
         // compute the inverse of the Fp4-norm:
         // |w| = w*w.conj(2)*w.conj(4) =
@@ -262,7 +275,8 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     }
 
     /// Compute <i>`self`&#x1D4F;</i> in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
-    pub(crate) fn pow(&self, k: &Uint<LIMBS>) -> Self {
+    #[inline]
+    pub fn pow(&self, k: &Uint<LIMBS>) -> Self {
         // prepare a table such that t[d] = v^d, where 0 <= d < 16:
         let mut t = [Self::one(); 16];
         t[1] = self.clone();
@@ -289,6 +303,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
 
     /// Compute <i>`self`&#x207F;</i> in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>,
     /// where <i>n</i> is the BN curve order over <i><b>F</b><sub>p</sub></i>.
+    #[inline]
     pub(crate) fn pow_n(&self) -> Self {
         // this method is local to the crate, and the exponent (restricted to the curve order)
         // is fixed, public, and fairly sparse, hence the square-and-multiply method suffices
@@ -306,6 +321,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
 
     /// Compute <i>`self`&#x1D58;</i> in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>,
     /// where <i>u</i> is the BN curve selector.
+    #[inline]
     fn pow_u(&self) -> Self {
         // this method is private, and the exponent (restricted to the BN selector)
         // is fixed, public, and rather sparse, hence the square-and-multiply method suffices:
@@ -330,6 +346,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     /// In: Shacham, H., Waters, B. (eds), Pairing-Based Cryptography -- Pairing 2009.
     /// Lecture Notes in Computer Science, vol. 5671, pp, 78--88. Springer, 2009.
     /// https://doi.org/10.1007/978-3-642-03298-1_6
+    #[inline]
     pub(crate) fn final_exp(&self) -> Self {
         // NB: u < 0 by choice!
         // p = 36*u^4 - 36*u^3 + 24*u^2 - 6*u + 1;
@@ -337,9 +354,9 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         let mut m = self.clone();
 
         // easy part of final exponentiation: m := m^((p^2 + 1)*(p^6 - 1))
-        m = m.conj(3)*m.inv();  // m = m^(p^6 - 1)
-        m = m.conj(1)*m;  // m = m^(p^2 + 1)
-        assert_eq!(m.inv(), m.conj(3));
+        m = m.conj2(3)*m.inv();  // m = m^(p^6 - 1)
+        m = m.conj2(1)*m;  // m = m^(p^2 + 1)
+        assert_eq!(m.inv(), m.conj2(3));
 
         // hard part of final exponentiation: m := m^((p^4 - p^2 + 1)/n)
         let mu = m.pow_u();  // m^u
@@ -347,19 +364,19 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         let mu3 = mu2.pow_u();  // m^(u^3)
 
         let mp = m.frob();
-        let mp2 = m.conj(1);
+        let mp2 = m.conj2(1);
         let mp3 = mp2.frob();
         let mup = mu.frob();
         let mu2p = mu2.frob();
         let mu3p = mu3.frob();
-        let mu2p2 = mu2.conj(1);
+        let mu2p2 = mu2.conj2(1);
 
         let y0 = mp*mp2*mp3;
-        let y1 = m.conj(3);  // conj(3) <-> inv()
+        let y1 = m.conj2(3);  // conj(3) <-> inv()
         let y2 = mu2p2;
         let y3 = mup;
-        let y4 = mu*mu2p.conj(3);  // conj(3) <-> inv()
-        let y5 = mu2.conj(3);  // conj(3) <-> inv()
+        let y4 = mu*mu2p.conj2(3);  // conj(3) <-> inv()
+        let y5 = mu2.conj2(3);  // conj(3) <-> inv()
         let y6 = mu3*mu3p;
 
         let mut t0 = y6.sq();
@@ -381,6 +398,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
 
     /// Multiply this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element by a sparse one
     /// of form <i>v&#8320; + v&#8321;z + v&#8323;z&sup3;</i>.
+    #[inline]
     pub(crate) fn mul_013(&mut self, rhs0: BNFp2<BN, LIMBS>, rhs1: BNFp2<BN, LIMBS>, rhs3: BNFp2<BN, LIMBS>) -> Self {
         // Karatsuba multiplication:
 
@@ -415,6 +433,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
 
     /// Multiply this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element by a sparse one
     /// of form <i>v&#8320; + v&#8322;z&sup2; + v&#8323;z&sup3;</i>.
+    #[inline]
     pub(crate) fn mul_023(&mut self, rhs0: BNFp2<BN, LIMBS>, rhs2: BNFp2<BN, LIMBS>, rhs3: BNFp2<BN, LIMBS>) -> Self {
         // Karatsuba multiplication:
 
@@ -446,6 +465,19 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
             v5: d_05 + d_23,
         }
     }
+
+    /// Convert `self` to serialized (byte array) representation.
+    #[inline]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = self.v0.to_bytes();
+        let mut next = self.v1.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v2.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v3.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v4.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v5.to_bytes(); bytes.append(&mut next);
+        bytes
+    }
+
 }
 
 impl<BN: BNParam, const LIMBS: usize> Add for BNFp12<BN, LIMBS> {
@@ -842,7 +874,7 @@ mod tests {
             // norm:
             //println!("|e12|_4 = {}", e12.norm4());
             //println!("|e12|_4 ? {}", e12*e12.conj(2)*e12.conj(4));
-            let e12_conj_prod = e12*e12.conj(2)*e12.conj(4);
+            let e12_conj_prod = e12*e12.conj2(2)*e12.conj2(4);
             let w0 = BNFp4::from(e12_conj_prod.v0, e12_conj_prod.v3);
             let w1 = BNFp4::from(e12_conj_prod.v1, e12_conj_prod.v4);
             let w2 = BNFp4::from(e12_conj_prod.v2, e12_conj_prod.v5);
@@ -902,7 +934,7 @@ mod tests {
             let k = Uint::random(&mut rng);
             //println!(">>>> tr(g^k) = {}", g.pow(&k).tr());
             //println!(">>>> tr(g^k) ? {}", g.tr().trexp(&k));
-            assert_eq!(g.pow(&k).tr(), g.tr().trexp(&k));
+            assert_eq!(g.pow(&k).tr4(), g.tr4().trexp(&k));
         }
         match now.elapsed() {
             Ok(elapsed) => {

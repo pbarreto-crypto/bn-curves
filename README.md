@@ -5,7 +5,7 @@ A BN curve is specified by an integer parameter <i>u</i> &#8712; &Zopf; such tha
 <i>p</i> &#x2254; <i>36u&#x2074; + 36u&sup3; + 24u&sup2; + 6u + 1</i> is prime, defining a finite field
 <b>F</b><sub><i>p</i></sub>.
 
-The additional constraint <i>p &equiv; 3 (mod 4)</i> is typical, since it enables specifying
+The additional constraint <i>p</i> &equiv; 3 (mod 4) is typical, since it enables specifying
 the quadratic extension <b>F</b><sub><i>p&sup2;</i></sub> = <b>F</b><sub><i>p</i></sub>&#8202;&lbrack;<i>i</i>&rbrack;/&lt;<i>i&sup2; + 1</i>&gt;
 and the tower-friendly extension fields
 <b>F</b><sub><i>p&#x2074;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&#8202;&lbrack;<i>&tau;</i>&rbrack;/&lt;<i>&tau;&sup2; + &xi;</i>&gt; and
@@ -19,6 +19,7 @@ which is usually required (with a careful choice of the curve parameter <i>u</i>
 The underlying finite field and the number of points are thus related as
 <i>n = p + 1 - t</i> where <i>t</i> &#x2254; <i>6u&sup2; + 1</i> is the trace of the Frobenius endomorphism
 on the curve.
+Incidentally, the curve order satisfies <i>n</i> &equiv; 5 (mod 8).
 
 The default quadratic twist of the curve is <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;&#8202;Z'</i> = <i>X'&sup3; + b'&#8202;Z'&sup3;</i>
 with <i>b'</i> &#x2254; <i>b/&xi;</i>, whose number of points is <i>n'</i> &#x2254; <i>#E'</i>(<b>F</b><sub><i>p&sup2;</i></sub>) = <i>h'&#8202;n</i>

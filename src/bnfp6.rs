@@ -39,6 +39,7 @@ pub type BN766Fp6 = BNFp6<BN766Param, 12>;
 
 impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
     /// Map an <b>F</b><sub><i>p&sup2;</i></sub> element to its <b>F</b><sub><i>p&#x2076;</i></sub> counterpart.
+    #[inline]
     pub(crate) fn from_base(v0: BNFp2<BN, LIMBS>) -> Self {
         Self {
             v0, v1: BNFp2::zero(), v2: BNFp2::zero()
@@ -46,18 +47,32 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
     }
 
     /// Assemble an <b>F</b><sub><i>p&#x2076;</i></sub> element from its components.
+    #[inline]
     pub(crate) fn from(v0: BNFp2<BN, LIMBS>, v1: BNFp2<BN, LIMBS>, v2: BNFp2<BN, LIMBS>) -> Self {
         Self {
             v0, v1, v2
         }
     }
 
+    /// Convert `self` to serialized (byte array) representation.
+    #[inline]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = self.v0.to_bytes();
+        let mut next = self.v1.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v2.to_bytes(); bytes.append(&mut next);
+        bytes
+    }
+
+    /// Compute the value of twice this element.
+    #[inline]
     pub(crate) fn double(&self) -> Self {
         Self {
             v0: self.v0.double(), v1: self.v1.double(), v2: self.v2.double()
         }
     }
 
+    /// Compute the value of half this element.
+    #[inline]
     pub(crate) fn half(&self) -> Self {
         Self {
             v0: self.v0.half(), v1: self.v1.half(), v2: self.v2.half()
@@ -67,6 +82,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
     /// Compute <i>`self`</i><sup>(<i>p&sup2;</i>)<i>&#x1D50;</i></sup>,
     /// the <i>m</i>-th conjugate in <b>F</b><sub><i>p&#x2076;</i></sub> of `self`
     /// over <i><b>F</b><sub>p&sup2;</sub></i>, for <i>0 &leq; m &lt; 3</i>.
+    #[inline]
     pub(crate) fn conj(&self, m: usize) -> Self {
         /*
          * w^(p^2)  = zeta0*w
@@ -92,6 +108,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
     }
 
     /// Compute the <b>F</b><sub><i>p&sup2;</i></sub>-norm of this <b>F</b><sub><i>p&#x2076;</i></sub> element.
+    #[inline]
     pub(crate) fn norm(&self) -> BNFp2<BN, LIMBS> {
         // |v| = v*v.conj(1)*v.conj(2)
         //
@@ -110,7 +127,9 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
         self.v0.cb() + (self.v1.cb() + (self.v2.sq().mul_xi() - 3*self.v0*self.v1)*self.v2).mul_xi()
     }
 
-    pub(crate) fn kara3mul(&mut self, rhs: Self) {
+    /// Compute the product of this element and `rhs` using 3-way Karatsuba over <b>F</b><sub><i>p&sup2;</i></sub>.
+    #[inline]
+    fn kara3mul(&mut self, rhs: Self) {
         let t0 = self.v0*rhs.v0;
         let t1 = self.v1*rhs.v1;
         let t2 = self.v2*rhs.v2;
@@ -122,7 +141,9 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
         self.v2 = t4 + t1;
     }
 
-    pub(crate) fn kara3sqr(&self) -> Self {
+    /// Compute the square of this element using 3-way Karatsuba over <b>F</b><sub><i>p&sup2;</i></sub>.
+    #[inline]
+    fn kara3sqr(&self) -> Self {
         let t0 = self.v0.sq();
         let t1 = self.v1.sq();
         let t2 = self.v2.sq();
@@ -134,7 +155,10 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
         }
     }
 
-    pub(crate) fn toom3mul(&mut self, fact: Self) {
+    /// Compute the product of this element and `rhs` using Toom-3 over <b>F</b><sub><i>p&sup2;</i></sub>.
+    /// Notice: this tends to be slower than 3-way Karatsuba.
+    #[inline]
+    fn toom3mul(&mut self, fact: Self) {
         // evaluate the factors at 0, 1, -1, i, and ∞:
         let s = self.v0 + self.v2;
         let a = [self.v0, s + self.v1, s - self.v1, self.v0 - self.v2 + self.v1.mul_i(), self.v2];
@@ -163,7 +187,10 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
         self.v2 = c_2;
     }
 
-    pub(crate) fn toom3sqr(&self) -> Self  {
+    /// Compute the square of this element using Toom-3 over <b>F</b><sub><i>p&sup2;</i></sub>.
+    /// Notice: this tends to be slower than 3-way Karatsuba.
+    #[inline]
+    fn toom3sqr(&self) -> Self  {
         // evaluate the factors at 0, 1, -1, i, and ∞:
         let s = self.v0 + self.v2;
         let a = [self.v0, s + self.v1, s - self.v1, self.v0 - self.v2 + self.v1.mul_i(), self.v2];
@@ -184,6 +211,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
     }
 
     /// Compute the square of this <b>F</b><sub><i>p&#x2076;</i></sub> element.
+    #[inline]
     pub(crate) fn sq(self) -> Self {
         //*
         self.kara3sqr()
@@ -194,12 +222,14 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
     }
 
     /// Compute the cube of this <b>F</b><sub><i>p&#x2076;</i></sub> element.
+    #[inline]
     pub(crate) fn cb(self) -> Self {
         self.sq()*self
     }
 
     /// Compute the inverse of this <b>F</b><sub><i>p&#x2076;</i></sub> element
     /// (or 0, if this element is itself 0).
+    #[inline]
     pub(crate) fn inv(&self) -> Self {
         // |v| = v*v.conj(1)*v.conj(2)
         // :: v^-1 = |v|^-1*v.conj(1)*v.conj(2)

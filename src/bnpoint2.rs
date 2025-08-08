@@ -11,6 +11,7 @@ use rand::Rng;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use crypto_bigint::rand_core::TryRngCore;
+use crate::bnzn::BNZn;
 
 pub struct BNPoint2<BN: BNParam, const LIMBS: usize> {
     pub(crate) x: BNFp2<BN, LIMBS>,
@@ -75,7 +76,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
 
     /// Create an instance of the default generator of <i>n</i>-torsion <i>G&#x2082; &#x2254; (-i, 1)</i>
     /// on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>.
-    pub fn gen() -> Self {
+    pub fn default_generator() -> Self {
         Self::new(-BNFp2::i(), Choice::from(1)).elim_cof()
     }
 
@@ -183,7 +184,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     /// Lecture Notes in Computer Science, vol. 4076, pp. 510--524, 2006.
     /// Springer, Berlin Heidelberg, 2006.
     /// https://doi.org/10.1007/11792086_36
-    pub(crate) fn point_factory(t: BNFp2<BN, LIMBS>) -> BNPoint2<BN, LIMBS> {
+    pub fn point_factory(t: BNFp2<BN, LIMBS>) -> BNPoint2<BN, LIMBS> {
         let one = BNFp2::one();
         let bt = BNFp2::from(BNFp::from_word(BN::FIELD_XI_RE), -BNFp::from_word(BN::FIELD_XI_IM));
         let sqrt_m3: BNFp<BN, LIMBS> = BNFp::from_uint(Uint::from_words(<[Word; LIMBS]>::try_from(BN::SQRT_NEG_3).unwrap()));
@@ -508,6 +509,16 @@ impl<BN: BNParam, const LIMBS: usize> Mul<BNPoint2<BN, LIMBS>> for Uint<LIMBS> {
     fn mul(self, point: BNPoint2<BN, LIMBS>) -> Self::Output {
         let mut v = point;
         v *= self;
+        v
+    }
+}
+
+impl<BN: BNParam, const LIMBS: usize> Mul<BNPoint2<BN, LIMBS>> for BNZn<BN, LIMBS> {
+    type Output = BNPoint2<BN, LIMBS>;
+
+    fn mul(self, point: BNPoint2<BN, LIMBS>) -> Self::Output {
+        let mut v = point;
+        v *= self.to_uint();
         v
     }
 }

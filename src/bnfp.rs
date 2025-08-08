@@ -6,7 +6,7 @@ use crate::traits::One;
 use crypto_bigint::{Integer, Limb, NonZero, Random, Uint, Word, Zero};
 use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeLess};
-use sha3::Shake256;
+use sha3::{Shake128, Shake256};
 use sha3::digest::ExtendableOutput;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
@@ -46,7 +46,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
     #[inline]
     fn redc(t_lo: Uint<LIMBS>, t_hi: Uint<LIMBS>) -> Uint<LIMBS> {
         let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());  // p < 2^w
-        let q: Uint<LIMBS> = Uint::from_words(BN::NEG_INV_MOD.try_into().unwrap());  // q &#x2254; -1/p mod 2^w
+        let q: Uint<LIMBS> = Uint::from_words(BN::NEG_INV_MOD.try_into().unwrap());  // q := -1/p mod 2^w
         // m ← ((t mod r)*q) mod r = (t_lo*q) mod r:
         let (m, _) = t_lo.widening_mul(&q);
         // t ← (t + m*p) / r:
@@ -99,6 +99,25 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
         }
     }
 
+    /// Hash input data into a base field element with SHAKE-128.
+    ///
+    /// Twice as much hash output is converted to the field element via Montgomery reduction.
+    /// This ensures the deviation from uniform sampling over <b>F</b><sub><i>p</i></sub>
+    /// is upper-bounded by <i>p&#8315;&sup1;</i>, well below the target
+    /// adversary advantage <i>O</i>(<i>p<sup>-&frac12;</sup></i>).
+    #[inline]
+    pub fn shake128(data: &[u8]) -> Self {
+        let mut out = vec![0u8; 2*LIMBS*8];  // twice the space taken by a base field element
+        Shake128::digest_xof(data, &mut out);
+        out[2*LIMBS*8 - 1] = 0;  // make sure the lift to Z does not exceed the squared BN modulus p^2
+        let lo = Uint::from_le_slice(&out[0..LIMBS*8]);
+        let hi = Uint::from_le_slice(&out[LIMBS*8..]);
+        Self {
+            0: Self::redc(lo, hi),
+            1: Default::default(),
+        }
+    }
+
     /// Hash input data into a base field element with SHAKE-256.
     ///
     /// Twice as much hash output is converted to the field element via Montgomery reduction.
@@ -110,12 +129,31 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
         let mut out = vec![0u8; 2*LIMBS*8];  // twice the space taken by a base field element
         Shake256::digest_xof(data, &mut out);
         out[2*LIMBS*8 - 1] = 0;  // make sure the lift to Z does not exceed the squared BN modulus p^2
-        let lo = Uint::from_be_slice(&out[0..LIMBS*8]);
-        let hi = Uint::from_be_slice(&out[LIMBS*8..]);
+        let lo = Uint::from_le_slice(&out[0..LIMBS*8]);
+        let hi = Uint::from_le_slice(&out[LIMBS*8..]);
         Self {
             0: Self::redc(lo, hi),
             1: Default::default(),
         }
+    }
+
+    /// Hash input data into a pair of base field elements with SHAKE-128.
+    ///
+    /// Mainly for use by the quadratic extension field.
+    #[inline]
+    pub(crate) fn shake128pair(data: &[u8]) -> (Self, Self) {
+        let mut out = vec![0u8; 4*LIMBS*8];  // twice the space taken by two base field elements
+        Shake128::digest_xof(data, &mut out);
+        out[2*LIMBS*8 - 1] = 0;  // make sure the lift of re to Z does not exceed the squared BN modulus p^2
+        out[4*LIMBS*8 - 1] = 0;  // make sure the lift of im to Z does not exceed the squared BN modulus p^2
+        let re_lo = Uint::from_le_slice(&out[0..LIMBS*8]);
+        let re_hi = Uint::from_le_slice(&out[LIMBS*8..2*LIMBS*8]);
+        let im_lo = Uint::from_le_slice(&out[2*LIMBS*8..3*LIMBS*8]);
+        let im_hi = Uint::from_le_slice(&out[3*LIMBS*8..]);
+        (
+            Self { 0: Self::redc(re_lo, re_hi), 1: Default::default(), },
+            Self { 0: Self::redc(im_lo, im_hi), 1: Default::default(), },
+        )
     }
 
     /// Hash input data into a pair of base field elements with SHAKE-256.
@@ -127,10 +165,10 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
         Shake256::digest_xof(data, &mut out);
         out[2*LIMBS*8 - 1] = 0;  // make sure the lift of re to Z does not exceed the squared BN modulus p^2
         out[4*LIMBS*8 - 1] = 0;  // make sure the lift of im to Z does not exceed the squared BN modulus p^2
-        let re_lo = Uint::from_be_slice(&out[0..LIMBS*8]);
-        let re_hi = Uint::from_be_slice(&out[LIMBS*8..2*LIMBS*8]);
-        let im_lo = Uint::from_be_slice(&out[2*LIMBS*8..3*LIMBS*8]);
-        let im_hi = Uint::from_be_slice(&out[3*LIMBS*8..]);
+        let re_lo = Uint::from_le_slice(&out[0..LIMBS*8]);
+        let re_hi = Uint::from_le_slice(&out[LIMBS*8..2*LIMBS*8]);
+        let im_lo = Uint::from_le_slice(&out[2*LIMBS*8..3*LIMBS*8]);
+        let im_hi = Uint::from_le_slice(&out[3*LIMBS*8..]);
         (
             Self { 0: Self::redc(re_lo, re_hi), 1: Default::default(), },
             Self { 0: Self::redc(im_lo, im_hi), 1: Default::default(), },
@@ -144,6 +182,27 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
     #[inline]
     pub(crate) fn to_uint(&self) -> Uint<LIMBS> {
         Self::redc(self.0, Uint::ZERO)
+    }
+
+    /// Convert `self` to serialized (byte array) representation.
+    #[inline]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let binding = self.to_uint();
+        let val = binding.as_words();
+        assert_eq!(val.len(), LIMBS);
+        let mut bytes = Vec::<u8>::with_capacity(LIMBS << 3);
+        for j in 0..LIMBS {
+            let u = val[j];
+            bytes.push(u as u8);
+            bytes.push((u >> 8) as u8);
+            bytes.push((u >> 16) as u8);
+            bytes.push((u >> 24) as u8);
+            bytes.push((u >> 32) as u8);
+            bytes.push((u >> 40) as u8);
+            bytes.push((u >> 48) as u8);
+            bytes.push((u >> 56) as u8);
+        }
+        bytes
     }
 
     /// Determine if the plain representation of this element is odd.
@@ -427,7 +486,7 @@ impl<BN: BNParam, const LIMBS: usize> Mul<BNFp<BN, LIMBS>> for Word {
             fac >>= 1;
             add += add;
         }
-        // assert_eq!(val, BNFp::from_word(self)*rhs);
+        //assert_eq!(val, BNFp::from_word(self)*rhs);
         val
     }
 }
