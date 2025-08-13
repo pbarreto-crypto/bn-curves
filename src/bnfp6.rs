@@ -4,7 +4,7 @@ compile_error!("this crate requires 64-bit limbs");
 use crate::bnfp::BNFp;
 use crate::bnfp2::BNFp2;
 use crate::bnparam::BNParam;
-use crate::traits::One;
+use crate::traits::{BNField, One};
 use crypto_bigint::{Random, Uint, Word, Zero};
 use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
@@ -51,31 +51,6 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
     pub(crate) fn from(v0: BNFp2<BN, LIMBS>, v1: BNFp2<BN, LIMBS>, v2: BNFp2<BN, LIMBS>) -> Self {
         Self {
             v0, v1, v2
-        }
-    }
-
-    /// Convert `self` to serialized (byte array) representation.
-    #[inline]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = self.v0.to_bytes();
-        let mut next = self.v1.to_bytes(); bytes.append(&mut next);
-        let mut next = self.v2.to_bytes(); bytes.append(&mut next);
-        bytes
-    }
-
-    /// Compute the value of twice this element.
-    #[inline]
-    pub(crate) fn double(&self) -> Self {
-        Self {
-            v0: self.v0.double(), v1: self.v1.double(), v2: self.v2.double()
-        }
-    }
-
-    /// Compute the value of half this element.
-    #[inline]
-    pub(crate) fn half(&self) -> Self {
-        Self {
-            v0: self.v0.half(), v1: self.v1.half(), v2: self.v2.half()
         }
     }
 
@@ -209,45 +184,6 @@ impl<BN: BNParam, const LIMBS: usize> BNFp6<BN, LIMBS> {
             v0: e[0] + c[3].mul_xi(), v1: c[1] + c[4].mul_xi(), v2: c[2]
         }
     }
-
-    /// Compute the square of this <b>F</b><sub><i>p&#x2076;</i></sub> element.
-    #[inline]
-    pub(crate) fn sq(self) -> Self {
-        //*
-        self.kara3sqr()
-        // */
-        /*
-        self.toom3sqr()  // slower than 3-way Karatsuba
-        // */
-    }
-
-    /// Compute the cube of this <b>F</b><sub><i>p&#x2076;</i></sub> element.
-    #[inline]
-    pub(crate) fn cb(self) -> Self {
-        self.sq()*self
-    }
-
-    /// Compute the inverse of this <b>F</b><sub><i>p&#x2076;</i></sub> element
-    /// (or 0, if this element is itself 0).
-    #[inline]
-    pub(crate) fn inv(&self) -> Self {
-        // |v| = v*v.conj(1)*v.conj(2)
-        // :: v^-1 = |v|^-1*v.conj(1)*v.conj(2)
-        //
-        // v.conj(1)*v.conj(2) = (v_0^2 - v_1*v_2*xi) + (v_2^2*xi - v_0*v_1) w + (v_1^2 - v_0*v_2) w^2
-        // |v| = v_0*(v_0^2 - v_1*v_2*xi) + v_1*(v_1^2 - v_0*v_2)*xi + v_2*(v_2^2*xi - v_0*v_1)*xi
-
-        // compute the components of the product of proper conjugates:
-        let c0 = self.v0.sq() - self.v1*self.v2.mul_xi();  // v_0^2 - v_1*v_2*xi
-        let c1 = self.v2.sq().mul_xi() - self.v0*self.v1;  // v_2^2*xi - v_0*v_1
-        let c2 = self.v1.sq() - self.v0*self.v2;  // v_1^2 - v_0*v_2
-
-        // compute the inverse of the Fp2-norm:
-        let norm_inv = (self.v0*c0 + (self.v1*c2 + self.v2*c1).mul_xi()).inv();
-
-        // complete the inversion in Fp6:
-        norm_inv*Self::from(c0, c1, c2)
-    }
 }
 
 impl<BN: BNParam, const LIMBS: usize> Add for BNFp6<BN, LIMBS> {
@@ -265,6 +201,72 @@ impl<BN: BNParam, const LIMBS: usize> AddAssign for BNFp6<BN, LIMBS> {
         self.v0 += rhs.v0;
         self.v1 += rhs.v1;
         self.v2 += rhs.v2;
+    }
+}
+
+impl<BN: BNParam, const LIMBS: usize> BNField for BNFp6<BN, LIMBS> {
+    /// Convert `self` to serialized (byte array) representation.
+    #[inline]
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = self.v0.to_bytes();
+        let mut next = self.v1.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v2.to_bytes(); bytes.append(&mut next);
+        bytes
+    }
+
+    /// Compute the value of twice this element.
+    #[inline]
+    fn double(&self) -> Self {
+        Self {
+            v0: self.v0.double(), v1: self.v1.double(), v2: self.v2.double()
+        }
+    }
+
+    /// Compute the value of half this element.
+    #[inline]
+    fn half(&self) -> Self {
+        Self {
+            v0: self.v0.half(), v1: self.v1.half(), v2: self.v2.half()
+        }
+    }
+
+    /// Compute the square of this <b>F</b><sub><i>p&#x2076;</i></sub> element.
+    #[inline]
+    fn sq(&self) -> Self {
+        //*
+        self.kara3sqr()
+        // */
+        /*
+        self.toom3sqr()  // slower than 3-way Karatsuba
+        // */
+    }
+
+    /// Compute the cube of this <b>F</b><sub><i>p&#x2076;</i></sub> element.
+    #[inline]
+    fn cb(&self) -> Self {
+        self.sq()*(*self)
+    }
+
+    /// Compute the inverse of this <b>F</b><sub><i>p&#x2076;</i></sub> element
+    /// (or 0, if this element is itself 0).
+    #[inline]
+    fn inv(&self) -> Self {
+        // |v| = v*v.conj(1)*v.conj(2)
+        // :: v^-1 = |v|^-1*v.conj(1)*v.conj(2)
+        //
+        // v.conj(1)*v.conj(2) = (v_0^2 - v_1*v_2*xi) + (v_2^2*xi - v_0*v_1) w + (v_1^2 - v_0*v_2) w^2
+        // |v| = v_0*(v_0^2 - v_1*v_2*xi) + v_1*(v_1^2 - v_0*v_2)*xi + v_2*(v_2^2*xi - v_0*v_1)*xi
+
+        // compute the components of the product of proper conjugates:
+        let c0 = self.v0.sq() - self.v1*self.v2.mul_xi();  // v_0^2 - v_1*v_2*xi
+        let c1 = self.v2.sq().mul_xi() - self.v0*self.v1;  // v_2^2*xi - v_0*v_1
+        let c2 = self.v1.sq() - self.v0*self.v2;  // v_1^2 - v_0*v_2
+
+        // compute the inverse of the Fp2-norm:
+        let norm_inv = (self.v0*c0 + (self.v1*c2 + self.v2*c1).mul_xi()).inv();
+
+        // complete the inversion in Fp6:
+        norm_inv*Self::from(c0, c1, c2)
     }
 }
 

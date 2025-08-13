@@ -3,7 +3,7 @@ compile_error!("this crate requires 64-bit limbs");
 
 use crate::bnfp::BNFp;
 use crate::bnparam::BNParam;
-use crate::traits::One;
+use crate::traits::{BNField, One};
 use crypto_bigint::{Random, Uint, Word, Zero};
 use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
@@ -64,48 +64,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
         }
     }
 
-    /// Convert `self` to serialized (byte array) representation.
-    #[inline]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut rev = self.re.to_bytes();
-        let mut imv = self.im.to_bytes();
-        rev.append(&mut imv);
-        rev
-    }
-
-    /// Compute the value of twice this element.
-    #[inline]
-    pub(crate) fn double(&self) -> Self {
-        Self {
-            re: self.re.double(),
-            im: self.im.double(),
-        }
-    }
-
-    /// Compute the value of half this element.
-    #[inline]
-    pub(crate) fn half(&self) -> Self {
-        Self {
-            re: self.re.half(),
-            im: self.im.half(),
-        }
-    }
-
-    /// Create an instance of the element <i>i &in; <b>F</b><sub>p&sup2;</sub></i>.
-    #[inline]
-    pub(crate) fn i() -> Self {
-        Self {
-            re: BNFp::zero(),
-            im: BNFp::one(),
-        }
-    }
-
-    /// Hash input data into a base field element with SHAKE-128.
-    ///
-    /// Twice as much hash output is converted to the field element via Montgomery reduction.
-    /// This ensures the deviation from uniform sampling over <b>F</b><sub><i>p</i></sub>
-    /// is upper-bounded by <i>p&#8315;&sup1;</i>, well below the target
-    /// adversary advantage <i>O(p<sup>-&frac12;</sup>)</i>.
+    /// Hash input data into a field element with SHAKE-128.
     #[inline]
     pub fn shake128(data: &[u8]) -> Self {
         let (re, im) = BNFp::shake128pair(data);
@@ -115,18 +74,22 @@ impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
         }
     }
 
-    /// Hash input data into a base field element with SHAKE-256.
-    ///
-    /// Twice as much hash output is converted to the field element via Montgomery reduction.
-    /// This ensures the deviation from uniform sampling over <b>F</b><sub><i>p</i></sub>
-    /// is upper-bounded by <i>p&#8315;&sup1;</i>, well below the target
-    /// adversary advantage <i>O(p<sup>-&frac12;</sup>)</i>.
+    /// Hash input data into a field element with SHAKE-256.
     #[inline]
     pub fn shake256(data: &[u8]) -> Self {
         let (re, im) = BNFp::shake256pair(data);
         Self {
             re,
             im,
+        }
+    }
+
+    /// Create an instance of the element <i>i &in; <b>F</b><sub>p&sup2;</sub></i>.
+    #[inline]
+    pub(crate) fn i() -> Self {
+        Self {
+            re: BNFp::zero(),
+            im: BNFp::one(),
         }
     }
 
@@ -147,40 +110,6 @@ impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
     #[inline]
     pub(crate) fn norm(&self) -> BNFp<BN, LIMBS> {
         self.re.sq() + self.im.sq()
-    }
-
-    /// Compute the square of this <b>F</b><sub><i>p&sup2;</i></sub> element.
-    #[inline]
-    pub(crate) fn sq(self) -> Self {
-        // (u + vi)^2 = u^2 - v^2 + 2uvi = (u + v)*(u - v) + 2uvi
-        let repim = self.re + self.im;
-        let remim = self.re - self.im;
-        let retim = self.re*self.im;
-        Self {
-            re: repim*remim,
-            im: retim + retim
-        }
-    }
-
-    /// Compute the cube of this <b>F</b><sub><i>p&sup2;</i></sub> element.
-    #[inline]
-    pub(crate) fn cb(&self) -> Self {
-        // (u + vi)^3 = u*(u^2 - 3*v^2) + v*(3*u^2 - v^2) i
-        let re2 = self.re.sq();
-        let im2 = self.im.sq();
-        let d = re2 - im2;
-        Self {
-            re: self.re*(d - im2 - im2),
-            im: self.im*(re2 + re2 + d)
-        }
-    }
-
-    /// Compute the inverse of this <b>F</b><sub><i>p&sup2;</i></sub> element
-    /// (or 0, if this element is itself 0).
-    #[inline]
-    pub(crate) fn inv(&self) -> Self {
-        // (u + vi)^-1 = (u^2 + v^2)^-1*(u - vi) = norm^-1*conj.
-        self.norm().inv()*self.conj()
     }
 
     /// Compute the product of a field element <i>x + yi</i> by <i>i</i>.
@@ -286,6 +215,69 @@ impl<BN: BNParam, const LIMBS: usize> AddAssign for BNFp2<BN, LIMBS> {
     fn add_assign(&mut self, rhs: Self) {
         self.re += rhs.re;
         self.im += rhs.im;
+    }
+}
+
+impl<BN: BNParam, const LIMBS: usize> BNField for BNFp2<BN, LIMBS> {
+    /// Convert `self` to byte array representation.
+    #[inline]
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut rev = self.re.to_bytes();
+        let mut imv = self.im.to_bytes();
+        rev.append(&mut imv);
+        rev
+    }
+
+    /// Compute the value of twice this element.
+    #[inline]
+    fn double(&self) -> Self {
+        Self {
+            re: self.re.double(),
+            im: self.im.double(),
+        }
+    }
+
+    /// Compute the value of half this element.
+    #[inline]
+    fn half(&self) -> Self {
+        Self {
+            re: self.re.half(),
+            im: self.im.half(),
+        }
+    }
+
+    /// Compute the square of this <b>F</b><sub><i>p&sup2;</i></sub> element.
+    #[inline]
+    fn sq(&self) -> Self {
+        // (u + vi)^2 = u^2 - v^2 + 2uvi = (u + v)*(u - v) + 2uvi
+        let repim = self.re + self.im;
+        let remim = self.re - self.im;
+        let retim = self.re*self.im;
+        Self {
+            re: repim*remim,
+            im: retim + retim
+        }
+    }
+
+    /// Compute the cube of this <b>F</b><sub><i>p&sup2;</i></sub> element.
+    #[inline]
+    fn cb(&self) -> Self {
+        // (u + vi)^3 = u*(u^2 - 3*v^2) + v*(3*u^2 - v^2) i
+        let re2 = self.re.sq();
+        let im2 = self.im.sq();
+        let d = re2 - im2;
+        Self {
+            re: self.re*(d - im2 - im2),
+            im: self.im*(re2 + re2 + d)
+        }
+    }
+
+    /// Compute the inverse of `self` in <b>F</b><sub><i>p&sup2;</i></sub>
+    /// (or 0, if `self` is itself 0).
+    #[inline]
+    fn inv(&self) -> Self {
+        // (u + vi)^-1 = (u^2 + v^2)^-1*(u - vi) = norm^-1*conj.
+        self.norm().inv()*self.conj()
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "bn-curves"
-version = "0.1.1-rc.0"
+version = "0.1.1-rc.1"
 edition = "2024"
 authors = ["Paulo L. Barreto"]
 license = "MIT OR Apache-2.0"
@@ -16,7 +16,13 @@ crypto-bigint = { version = "0.7.0-rc.0", features = ["alloc"] }
 rand = "0.9.2"
 sha3 = "0.11.0-rc.0"
 
-[lib]
+[[bin]]
+name = "bnparamgen"
+
+[[example]]
+name = "bgls"
 
 [[example]]
 name = "blmq"
+
+[lib]

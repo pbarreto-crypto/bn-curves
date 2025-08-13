@@ -4,8 +4,9 @@ compile_error!("this crate requires 64-bit limbs");
 use crate::bnfp::BNFp;
 use crate::bnfp2::BNFp2;
 use crate::bnfp4::BNFp4;
+use crate::bnfp6::BNFp6;
 use crate::bnparam::BNParam;
-use crate::traits::One;
+use crate::traits::{BNField, One};
 use crypto_bigint::{Random, Uint, Word, Zero};
 use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
@@ -58,30 +59,12 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         }
     }
 
-    /// Compute the value of twice this element.
-    #[inline]
-    pub fn double(&self) -> Self {
-        Self {
-            v0: self.v0.double(), v1: self.v1.double(), v2: self.v2.double(),
-            v3: self.v3.double(), v4: self.v4.double(), v5: self.v5.double(),
-        }
-    }
-
-    /// Compute the value of half this element.
-    #[inline]
-    pub fn half(&self) -> Self {
-        Self {
-            v0: self.v0.half(), v1: self.v1.half(), v2: self.v2.half(),
-            v3: self.v3.half(), v4: self.v4.half(), v5: self.v5.half(),
-        }
-    }
-
     /// Compute <i>`self`&#x1D56;</i> in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
     #[inline]
     pub fn frob(&self) -> Self {
-        let zeta0 = BNFp::from_words(<[Word; LIMBS]>::try_from(BN::ZETA).unwrap());
+        let zeta0 = BNFp::from_words(BN::ZETA.try_into().unwrap());
         let zeta1 = -(zeta0 + BNFp::one());
-        let theta = BNFp::from_words(<[Word; LIMBS]>::try_from(BN::THETA).unwrap());
+        let theta = BNFp::from_words(BN::THETA.try_into().unwrap());
         Self {
             v0: self.v0.conj(),
             v1: -zeta1*theta*self.v1.mul_xi().conj(),
@@ -112,7 +95,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
          * v^(p^10) = v_0 + v_1(zeta+1) z + v_2zeta z^2 - v_3 z^3 - v_4 z^4(zeta+1) - v_5zeta z^5
          */
         assert!(m < 6);
-        let zeta0 = BNFp::from_words(<[Word; LIMBS]>::try_from(BN::ZETA).unwrap());
+        let zeta0 = BNFp::from_words(BN::ZETA.try_into().unwrap());
         let zeta1 = -(zeta0 + BNFp::one());
         let v = match m {
             0 => [
@@ -199,81 +182,6 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         3*BNFp4::from(self.v0, self.v3)
     }
 
-    /// Compute the square of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element.
-    #[inline]
-    pub fn sq(self) -> Self {
-        // Karatsuba multiplication:
-
-        let d_00 = self.v0.sq();
-        let d_11 = self.v1.sq();
-        let d_22 = self.v2.sq();
-        let d_33 = self.v3.sq();
-        let d_44 = self.v4.sq();
-        let d_55 = self.v5.sq();
-
-        let d_01 = (self.v0 + self.v1).sq() - d_00 - d_11;
-        let d_02 = (self.v0 + self.v2).sq() - d_00 - d_22;
-        let d_04 = (self.v0 + self.v4).sq() - d_00 - d_44;
-        let d_13 = (self.v1 + self.v3).sq() - d_11 - d_33;
-        let d_15 = (self.v1 + self.v5).sq() - d_11 - d_55;
-        let d_23 = (self.v2 + self.v3).sq() - d_22 - d_33;
-        let d_24 = (self.v2 + self.v4).sq() - d_22 - d_44;
-        let d_35 = (self.v3 + self.v5).sq() - d_33 - d_55;
-        let d_45 = (self.v4 + self.v5).sq() - d_44 - d_55;
-
-        let s_01 = d_00 + d_11;
-        let s_23 = d_22 + d_33;
-        let s_45 = d_44 + d_55;
-        let d_03 = (self.v0 + self.v1 + self.v2 + self.v3).sq()
-            - (s_01 + s_23 + d_01 + d_02 + d_13 + d_23);
-        let d_05 = (self.v0 + self.v1 + self.v4 + self.v5).sq()
-            - (s_01 + s_45 + d_01 + d_04 + d_15 + d_45);
-        let d_25 = (self.v2 + self.v3 + self.v4 + self.v5).sq()
-            - (s_23 + s_45 + d_23 + d_24 + d_35 + d_45);
-
-        Self {
-            v0: (d_15 + d_24 + d_33).mul_xi() + d_00,
-            v1: d_25.mul_xi() + d_01,
-            v2: (d_35 + d_44).mul_xi() + d_02 + d_11,
-            v3: d_45.mul_xi() + d_03,
-            v4: d_55.mul_xi() + d_04 + d_13 + d_22,
-            v5: d_05 + d_23,
-        }
-    }
-
-    /// Compute the cube of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element.
-    #[inline]
-    pub fn cb(self) -> Self {
-        self.sq()*self
-    }
-
-    /// Compute the inverse of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element
-    /// (or 0, if this element is itself 0).
-    #[inline]
-    pub fn inv(&self) -> Self {
-        // w = w0 + w1*z + w2*z^2
-        // split this Fp12 element into its Fp4 components:
-        let w0 = BNFp4::from(self.v0, self.v3);
-        let w1 = BNFp4::from(self.v1, self.v4);
-        let w2 = BNFp4::from(self.v2, self.v5);
-
-        // w.conj(2)*w.conj(4) = (w0^2 - w1*w2*tau) + (w2^2*tau - w0*w1)*z + (w1^2 - w2*w0)*z^2
-        // compute the components of the product of proper conjugates:
-        let c0 = w0.sq() - w1*w2.mul_tau();
-        let c1 = w2.sq().mul_tau() - w0*w1;
-        let c2 = w1.sq() - w2*w0;
-        assert_eq!(self.conj2(2)*self.conj2(4), Self::from([c0.re, c1.re, c2.re, c0.im, c1.im, c2.im]));
-
-        // compute the inverse of the Fp4-norm:
-        // |w| = w*w.conj(2)*w.conj(4) =
-        // w0*(w0^2 - w1*w2*tau) + w1*(w1^2 - w2*w0)*tau + w2*(w2^2*tau - w0*w1)*tau
-        let norm_inv = (w0*c0 + (w1*c2 + w2*c1).mul_tau()).inv();
-
-        // |w| = w*w.conj(2)*w.conj(4) <=> w^-1 = |w|^-1*w.conj(2)*w.conj(4)
-        // complete the inversion in Fp12:
-        norm_inv*Self::from([c0.re, c1.re, c2.re, c0.im, c1.im, c2.im])
-    }
-
     /// Compute <i>`self`&#x1D4F;</i> in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
     #[inline]
     pub fn pow(&self, k: &Uint<LIMBS>) -> Self {
@@ -337,7 +245,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         r
     }
 
-    /// Compute <i>self<sup>(p&sup1;&sup2;-1)/n</sup></i> in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
+    /// Compute <i>`self`<sup>(p&sup1;&sup2;-1)/n</sup></i> in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
     ///
     /// Reference:
     ///
@@ -465,19 +373,6 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
             v5: d_05 + d_23,
         }
     }
-
-    /// Convert `self` to serialized (byte array) representation.
-    #[inline]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = self.v0.to_bytes();
-        let mut next = self.v1.to_bytes(); bytes.append(&mut next);
-        let mut next = self.v2.to_bytes(); bytes.append(&mut next);
-        let mut next = self.v3.to_bytes(); bytes.append(&mut next);
-        let mut next = self.v4.to_bytes(); bytes.append(&mut next);
-        let mut next = self.v5.to_bytes(); bytes.append(&mut next);
-        bytes
-    }
-
 }
 
 impl<BN: BNParam, const LIMBS: usize> Add for BNFp12<BN, LIMBS> {
@@ -498,6 +393,113 @@ impl<BN: BNParam, const LIMBS: usize> AddAssign for BNFp12<BN, LIMBS> {
         self.v3 += rhs.v3;
         self.v4 += rhs.v4;
         self.v5 += rhs.v5;
+    }
+}
+
+impl<BN: BNParam, const LIMBS: usize> BNField for BNFp12<BN, LIMBS> {
+    /// Convert `self` to byte array representation.
+    #[inline]
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = self.v0.to_bytes();
+        let mut next = self.v1.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v2.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v3.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v4.to_bytes(); bytes.append(&mut next);
+        let mut next = self.v5.to_bytes(); bytes.append(&mut next);
+        bytes
+    }
+
+    /// Compute the value of twice this element.
+    #[inline]
+    fn double(&self) -> Self {
+        Self {
+            v0: self.v0.double(), v1: self.v1.double(), v2: self.v2.double(),
+            v3: self.v3.double(), v4: self.v4.double(), v5: self.v5.double(),
+        }
+    }
+
+    /// Compute the value of half this element.
+    #[inline]
+    fn half(&self) -> Self {
+        Self {
+            v0: self.v0.half(), v1: self.v1.half(), v2: self.v2.half(),
+            v3: self.v3.half(), v4: self.v4.half(), v5: self.v5.half(),
+        }
+    }
+
+    /// Compute the square of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element.
+    #[inline]
+    fn sq(&self) -> Self {
+        // Karatsuba multiplication:
+
+        let d_00 = self.v0.sq();
+        let d_11 = self.v1.sq();
+        let d_22 = self.v2.sq();
+        let d_33 = self.v3.sq();
+        let d_44 = self.v4.sq();
+        let d_55 = self.v5.sq();
+
+        let d_01 = (self.v0 + self.v1).sq() - d_00 - d_11;
+        let d_02 = (self.v0 + self.v2).sq() - d_00 - d_22;
+        let d_04 = (self.v0 + self.v4).sq() - d_00 - d_44;
+        let d_13 = (self.v1 + self.v3).sq() - d_11 - d_33;
+        let d_15 = (self.v1 + self.v5).sq() - d_11 - d_55;
+        let d_23 = (self.v2 + self.v3).sq() - d_22 - d_33;
+        let d_24 = (self.v2 + self.v4).sq() - d_22 - d_44;
+        let d_35 = (self.v3 + self.v5).sq() - d_33 - d_55;
+        let d_45 = (self.v4 + self.v5).sq() - d_44 - d_55;
+
+        let s_01 = d_00 + d_11;
+        let s_23 = d_22 + d_33;
+        let s_45 = d_44 + d_55;
+        let d_03 = (self.v0 + self.v1 + self.v2 + self.v3).sq()
+            - (s_01 + s_23 + d_01 + d_02 + d_13 + d_23);
+        let d_05 = (self.v0 + self.v1 + self.v4 + self.v5).sq()
+            - (s_01 + s_45 + d_01 + d_04 + d_15 + d_45);
+        let d_25 = (self.v2 + self.v3 + self.v4 + self.v5).sq()
+            - (s_23 + s_45 + d_23 + d_24 + d_35 + d_45);
+
+        Self {
+            v0: (d_15 + d_24 + d_33).mul_xi() + d_00,
+            v1: d_25.mul_xi() + d_01,
+            v2: (d_35 + d_44).mul_xi() + d_02 + d_11,
+            v3: d_45.mul_xi() + d_03,
+            v4: d_55.mul_xi() + d_04 + d_13 + d_22,
+            v5: d_05 + d_23,
+        }
+    }
+
+    /// Compute the cube of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element.
+    #[inline]
+    fn cb(&self) -> Self {
+        self.sq()*(*self)
+    }
+
+    /// Compute the inverse of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element
+    /// (or 0, if this element is itself 0).
+    #[inline]
+    fn inv(&self) -> Self {
+        // w = w0 + w1*z + w2*z^2
+        // split this Fp12 element into its Fp4 components:
+        let w0 = BNFp4::from(self.v0, self.v3);
+        let w1 = BNFp4::from(self.v1, self.v4);
+        let w2 = BNFp4::from(self.v2, self.v5);
+
+        // w.conj(2)*w.conj(4) = (w0^2 - w1*w2*tau) + (w2^2*tau - w0*w1)*z + (w1^2 - w2*w0)*z^2
+        // compute the components of the product of proper conjugates:
+        let c0 = w0.sq() - w1*w2.mul_tau();
+        let c1 = w2.sq().mul_tau() - w0*w1;
+        let c2 = w1.sq() - w2*w0;
+        assert_eq!(self.conj2(2)*self.conj2(4), Self::from([c0.re, c1.re, c2.re, c0.im, c1.im, c2.im]));
+
+        // compute the inverse of the Fp4-norm:
+        // |w| = w*w.conj(2)*w.conj(4) =
+        // w0*(w0^2 - w1*w2*tau) + w1*(w1^2 - w2*w0)*tau + w2*(w2^2*tau - w0*w1)*tau
+        let norm_inv = (w0*c0 + (w1*c2 + w2*c1).mul_tau()).inv();
+
+        // |w| = w*w.conj(2)*w.conj(4) <=> w^-1 = |w|^-1*w.conj(2)*w.conj(4)
+        // complete the inversion in Fp12:
+        norm_inv*Self::from([c0.re, c1.re, c2.re, c0.im, c1.im, c2.im])
     }
 }
 

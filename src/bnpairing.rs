@@ -7,7 +7,7 @@ use crate::bnfp12::BNFp12;
 use crate::bnparam::BNParam;
 use crate::bnpoint::BNPoint;
 use crate::bnpoint2::BNPoint2;
-use crate::traits::One;
+use crate::traits::{BNField, One};
 use crypto_bigint::subtle::{ConditionallySelectable};
 use crypto_bigint::{Uint, Zero};
 use std::marker::PhantomData;
@@ -415,7 +415,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
     /// Creates a list of precomputed triples of <b>F</b><sub><i>p&sup2;</i></sub> elements from
     /// a point `Q` &in; <b>G</b><i>&#x2082;</i>, to be used later by BNPairing::eval(.)
     /// when `Q` is involved in several optimal pairing computations with different
-    /// first arguments from group <b>G</b><i>&#x2081;</i>.
+    /// arguments from group <b>G</b><i>&#x2081;</i>.
     ///
     /// Example:
     ///
@@ -426,7 +426,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
     #[allow(non_snake_case)]
     #[inline]
     pub fn precomp(Q: &BNPoint2<BN, LIMBS>) -> Vec<BNFp2<BN, LIMBS>> {
-        let mut triple = Vec::<BNFp2<BN, LIMBS>>::with_capacity(3*BN::TRIPLES as usize);
+        let mut Q_triples = Vec::<BNFp2<BN, LIMBS>>::with_capacity(3*BN::TRIPLES as usize);
         let QN = Q.normalize();
         let omega: Uint<LIMBS> = Uint::from_words(BN::OMEGA.try_into().unwrap());
         let omega_bits = (16*LIMBS + 1) as u32;  // bit length of optimal pairing order |6*u + 2|
@@ -455,9 +455,9 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
             let L_01 = -F;  // -2*Y1'*Z1'
             let L_00 = D - B;  // 3b*Z1'^2 - Y1'^2
             //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
-            triple.push(L_00);
-            triple.push(L_10);
-            triple.push(L_01);
+            Q_triples.push(L_00);
+            Q_triples.push(L_10);
+            Q_triples.push(L_01);
 
             if bool::from(omega.bit(j)) {
                 // Costello-Lange-Naehrig add-and-line formula:
@@ -471,9 +471,9 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
                 let L_01 = A;
                 let L_00 = B* QN.x - A* QN.y;
                 //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
-                triple.push(L_00);
-                triple.push(L_10);
-                triple.push(L_01);
+                Q_triples.push(L_00);
+                Q_triples.push(L_10);
+                Q_triples.push(L_01);
                 if j > 0 {
                     // add points U = U + Q (skip this when the pairing calculation is complete):
                     let mut C = A.sq();
@@ -509,9 +509,9 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
         let L_10 = -B;
         let L_01 = A;
         let L_00 = B*Q3.x - A*Q3.y;
-        triple.push(L_00);
-        triple.push(L_10);
-        triple.push(L_01);
+        Q_triples.push(L_00);
+        Q_triples.push(L_10);
+        Q_triples.push(L_01);
         // add points U = -Q2 + Q3:
         let mut C = A.sq();
         X1 *= C;
@@ -529,15 +529,15 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
         let L_10 = -B;
         let L_01 = A;
         let L_00 = B*Q1.x - A*Q1.y;
-        triple.push(L_00);
-        triple.push(L_10);
-        triple.push(L_01);
+        Q_triples.push(L_00);
+        Q_triples.push(L_10);
+        Q_triples.push(L_01);
 
         // NB: the third line involved in the optimal pairing calculation intersects
         // the point at infinity and hence only contributes a value in a proper subfield,
         // which is promptly erased by the final exponentiation and can thus be omitted.
-        assert_eq!(triple.len(), 3*BN::TRIPLES as usize);
-        triple
+        assert_eq!(Q_triples.len(), 3*BN::TRIPLES as usize);
+        Q_triples
     }
 
     /// Evaluates an optimal pairing in expedited fashion, from a point `P` &in; <b>G</b><i>&#x2081;</i>
@@ -546,14 +546,14 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
     ///
     /// Example:
     ///
-    /// &nbsp;&nbsp;&nbsp;&nbsp;let triples = BNPairing::precomp(&Q);<br>
-    /// &nbsp;&nbsp;&nbsp;&nbsp;let g_1 = BNPairing::eval(&P_1, &triples);  // e(P_1, Q)<br>
+    /// &nbsp;&nbsp;&nbsp;&nbsp;let Q_triples = BNPairing::precomp(&Q);<br>
+    /// &nbsp;&nbsp;&nbsp;&nbsp;let g_1 = BNPairing::eval(&Q_triples, &P_1);  // = e_opt(Q, P_1)<br>
     /// &nbsp;&nbsp;&nbsp;&nbsp;// ...<br>
-    /// &nbsp;&nbsp;&nbsp;&nbsp;let g_m = BNPairing::eval(&P_m, &triples);  // e(P_m, Q)<br>
+    /// &nbsp;&nbsp;&nbsp;&nbsp;let g_m = BNPairing::eval(&Q_triples, &P_m);  // = e_opt(Q, P_m)<br>
     #[allow(non_snake_case)]
     #[inline]
-    pub fn eval(P: &BNPoint<BN, LIMBS>, triples: &Vec<BNFp2<BN, LIMBS>>) -> BNFp12<BN, LIMBS> {
-        assert_eq!(triples.len(), 3*BN::TRIPLES as usize);
+    pub fn eval(Q_triples: &Vec<BNFp2<BN, LIMBS>>, P: &BNPoint<BN, LIMBS>) -> BNFp12<BN, LIMBS> {
+        assert_eq!(Q_triples.len(), 3*BN::TRIPLES as usize);
         let PN = P.normalize();
         let mut f: BNFp12<BN, LIMBS> = BNFp12::one();
         let omega: Uint<LIMBS> = Uint::from_words(BN::OMEGA.try_into().unwrap());
@@ -561,16 +561,16 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
         //let mut triple = [BNFp2::zero(); 3*BN::TRIPLES];  // (L_00, L_10, L_01)
         let mut pre = 0;  // individual precomputed value
         for j in (0..omega_bits-1).rev() {
-            let L_00 = triples[pre]; pre += 1;
-            let L_10 = triples[pre]; pre += 1;
-            let L_01 = triples[pre]; pre += 1;
+            let L_00 = Q_triples[pre]; pre += 1;
+            let L_10 = Q_triples[pre]; pre += 1;
+            let L_01 = Q_triples[pre]; pre += 1;
             //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
             f = f.sq().mul_013(PN.y*L_01, PN.x*L_10, L_00);  // accumulate line into running pairing value
             //println!("f = {}", f);
             if bool::from(omega.bit(j)) {
-                let L_00 = triples[pre]; pre += 1;
-                let L_10 = triples[pre]; pre += 1;
-                let L_01 = triples[pre]; pre += 1;
+                let L_00 = Q_triples[pre]; pre += 1;
+                let L_10 = Q_triples[pre]; pre += 1;
+                let L_01 = Q_triples[pre]; pre += 1;
                 //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
                 f = f.mul_013(PN.y*L_01, PN.x*L_10, L_00);  // accumulate line into running pairing value
                 //println!("f = {}", f);
@@ -578,15 +578,15 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
         }
         f = f.conj2(3);  // Aranha's trick: replace inversion by conjugation to get f = f_{6u+2,Q}.
         //println!("f = {}", f);
-        let L_00 = triples[pre]; pre += 1;
-        let L_10 = triples[pre]; pre += 1;
-        let L_01 = triples[pre]; pre += 1;
+        let L_00 = Q_triples[pre]; pre += 1;
+        let L_10 = Q_triples[pre]; pre += 1;
+        let L_01 = Q_triples[pre]; pre += 1;
         //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
         f = f.mul_013(PN.y*L_01, PN.x*L_10, L_00);  // accumulate line into running pairing value
         //println!("f = {}", f);
-        let L_00 = triples[pre]; pre += 1;
-        let L_10 = triples[pre]; pre += 1;
-        let L_01 = triples[pre]; pre += 1;
+        let L_00 = Q_triples[pre]; pre += 1;
+        let L_10 = Q_triples[pre]; pre += 1;
+        let L_01 = Q_triples[pre]; pre += 1;
         //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
         f = f.mul_013(PN.y*L_01, PN.x*L_10, L_00);  // accumulate line into running pairing value
         //println!("f = {}", f);
@@ -787,6 +787,8 @@ mod tests {
         //println!("**** o(G2, G1) = {}", g0);
         //println!("**** o(G2, G1)^n = {}", g0.pow_n());
         assert!(bool::from(!g0.is_one() & g0.pow_n().is_one()));
+
+        // random generators:
         for _t in 0..TESTS {
             let k = Uint::random(&mut rng);
             let a = BNPairing::opt(&(k*G2), &G1);
@@ -846,8 +848,8 @@ mod tests {
             assert_eq!(b, c);
 
             // precomputation:
-            let triples = BNPairing::precomp(&Q1);
-            assert_eq!(g, BNPairing::eval(&P1, &triples));
+            let Q1_triples = BNPairing::precomp(&Q1);
+            assert_eq!(g, BNPairing::eval(&Q1_triples, &P1));
         }
 
         match now.elapsed() {

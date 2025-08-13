@@ -2,16 +2,16 @@
 compile_error!("this crate requires 64-bit limbs");
 
 use crate::bnparam::BNParam;
-use crate::traits::One;
-use crypto_bigint::{Integer, Limb, NonZero, Random, Uint, Word, Zero};
+use crate::traits::{BNField, One};
+use crypto_bigint::{Integer, Limb, Random, Uint, Word, Zero};
 use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeLess};
+use rand::Rng;
 use sha3::{Shake128, Shake256};
 use sha3::digest::ExtendableOutput;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
-use rand::Rng;
 
 pub struct BNZn<BN: BNParam, const LIMBS: usize>(
     #[doc(hidden)]
@@ -152,56 +152,10 @@ impl<BN: BNParam, const LIMBS: usize> BNZn<BN, LIMBS> {
         Self::redc(self.0, Uint::ZERO).is_odd()
     }
 
-    /// Compute the value of twice this element.
-    #[inline]
-    pub fn double(&self) -> Self {
-        let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
-        Self {
-            0: self.0.add_mod(&self.0, &n),
-            1: Default::default(),
-        }
-    }
-
-    /// Compute <i>`self`/2</i> mod <i>n</i>.
-    ///
-    /// Technique: if the lift of <i>`self`</i> (either in plain or in Montgomery form)
-    /// to &Zopf; is even, a right-shift does the required division;
-    /// if it is odd, then <i>`self` + n</i> is even,
-    /// and <i>0</i> &leq; (<i>`self` + n</i>) >> <i>1</i> < <i>n</i> is the desired value.
-    #[inline]
-    pub fn half(&self) -> Self {
-        let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
-        Self {
-            0: Uint::conditional_select(&self.0, &self.0.add(n), self.0.is_odd()) >> 1,
-            1: Default::default(),
-        }
-    }
-
-    /// Compute the square of `self`.
-    #[inline]
-    pub fn sq(&self) -> Self {
-        let (lo, hi) = self.0.square_wide();
-        Self {
-            0: Self::redc(lo, hi),
-            1: Default::default(),
-        }
-    }
-
-    /// Compute the cube of `self`.
-    #[inline]
-    pub fn cb(&self) -> Self {
-        let (lo, hi) = self.0.square_wide();
-        let (lo, hi) = self.0.widening_mul(&Self::redc(lo, hi));
-        Self {
-            0: Self::redc(lo, hi),
-            1: Default::default(),
-        }
-    }
-
     /// Compute <i>v</i> = `self`<i>&#x02E3;</i> mod <i>n</i>.
     #[inline]
     fn pow(&self, x: Uint<LIMBS>) -> Self {
-        // this method is private, and the exponent (restricted to inversion)
+        // this method is private, and the exponent (restricted to inversion and square roots)
         // is fixed, public, and rather sparse, hence the square-and-multiply method suffices
         // (isochronous for either of these exponents, and more efficient than a fixed-window approach):
         let mut v = Self::one();
@@ -215,18 +169,41 @@ impl<BN: BNParam, const LIMBS: usize> BNZn<BN, LIMBS> {
         v
     }
 
-    /// Compute <i>r</i> = <i>u&#8315;&sup1;</i> = <i>u&#x1D56;&#8315;&sup2;</i> mod <i>n</i>
-    /// for <i>u</i> &#x2254; `self`, which satisfies
-    /// <i>r&times;u</i> mod <i>n</i> = <i>1</i> if <i>u &ne; 0</i>.
+    /// Compute the Legendre symbol (<i>`self`/p</i>) in isochronous fashion:<br>
+    /// &nbsp;   +1      if <i>`self`</i> is a nonzero quadratic residue mod <i>p</i>,<br>
+    /// &nbsp;   &nbsp;0 if <i>`self`</i> = <i>0</i><br>
+    /// &nbsp;   -1      if <i>`self`</i> is a nonzero quadratic non-residue mod <i>p</i>.
     ///
-    /// NB: crypto_bigint::Uint seems to offer an inversion functionality, but frankly,
-    /// the usage instructions are poorly documented at best, entirely missing at worst.
+    /// NB: The Bernstein-Yang-based <a href="https://ia.cr/2021/1271">algorithm</a> by M. Hamburg
+    /// is likely to be more efficient while also being isochronous, but its author claimed
+    /// it is covered by a patent.  For that reason, that algorithm is entirely bypassed in this crate.
     #[inline]
-    pub fn inv(&self) -> Self {
+    pub(crate) fn legendre(&self) -> isize {
         let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
-        self.pow(n - Uint::from_word(2)) // inv exponent: n - 2
+        // (v/n) = v^((n - 1)/2) mod n for prime n
+        let m = self.pow((n - Uint::ONE) >> 1).to_uint();
+        // take the three least significant bits of m:
+        let r = (m.as_words()[0] & 7) as isize;  // (v/n) = n-1, 0, 1
+        // NB: since n = 5 (mod 8), it follows that -1 = 4 (mod 8)
+        let val = -(r >> 2) + (r & 1);
+        val
     }
 
+    /// Compute a candidate square root <i>r</i> = <i>&radic;`self`</i> mod <i>n</i>,
+    /// which satisfies <i>r&sup2;</i> mod <i>n</i> = <i>`self`</i> if <i>`self`</i>
+    /// is a quadratic residue mod <i>n</i>.
+    #[inline]
+    pub(crate) fn sqrt(&self) -> Self {
+        // since n = 5 (mod 8), use the Atkins method:
+        let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
+        let k = n >> 3;
+        // compute γ := (2*self)^k mod n:
+        let gamma = self.double().pow(k);
+        // compute i := (2*self)*γ^2 mod n:
+        let i = self.double()*gamma.sq();
+        // compute and output z := self*γ*(i – 1) mod n:
+        (*self)*gamma*(i - BNZn::one())
+    }
 }
 
 impl<BN: BNParam, const LIMBS: usize> Add for BNZn<BN, LIMBS> {
@@ -247,6 +224,87 @@ impl<BN: BNParam, const LIMBS: usize> AddAssign for BNZn<BN, LIMBS> {
     fn add_assign(&mut self, rhs: Self) {
         let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
         self.0 = self.0.add_mod(&rhs.0, &n);
+    }
+}
+
+impl<BN: BNParam, const LIMBS: usize> BNField for BNZn<BN, LIMBS> {
+    /// Convert `self` to byte array representation.
+    #[inline]
+    fn to_bytes(&self) -> Vec<u8> {
+        let binding = self.to_uint();
+        let val = binding.as_words();
+        assert_eq!(val.len(), LIMBS);
+        let mut bytes = Vec::<u8>::with_capacity(LIMBS << 3);
+        for j in 0..LIMBS {
+            let u = val[j];
+            bytes.push(u as u8);
+            bytes.push((u >> 8) as u8);
+            bytes.push((u >> 16) as u8);
+            bytes.push((u >> 24) as u8);
+            bytes.push((u >> 32) as u8);
+            bytes.push((u >> 40) as u8);
+            bytes.push((u >> 48) as u8);
+            bytes.push((u >> 56) as u8);
+        }
+        bytes
+    }
+
+    /// Compute the value of twice this element.
+    #[inline]
+    fn double(&self) -> Self {
+        let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
+        Self {
+            0: self.0.add_mod(&self.0, &n),
+            1: Default::default(),
+        }
+    }
+
+    /// Compute <i>`self`/2</i> mod <i>n</i>.
+    ///
+    /// Technique: if the lift of <i>`self`</i> (either in plain or in Montgomery form)
+    /// to &Zopf; is even, a right-shift does the required division;
+    /// if it is odd, then <i>`self` + n</i> is even,
+    /// and <i>0</i> &leq; (<i>`self` + n</i>) >> <i>1</i> < <i>n</i> is the desired value.
+    #[inline]
+    fn half(&self) -> Self {
+        let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
+        Self {
+            0: Uint::conditional_select(&self.0, &self.0.add(n), self.0.is_odd()) >> 1,
+            1: Default::default(),
+        }
+    }
+
+    /// Compute the square of `self`.
+    #[inline]
+    fn sq(&self) -> Self {
+        let (lo, hi) = self.0.square_wide();
+        Self {
+            0: Self::redc(lo, hi),
+            1: Default::default(),
+        }
+    }
+
+    /// Compute the cube of `self`.
+    #[inline]
+    fn cb(&self) -> Self {
+        let (lo, hi) = self.0.square_wide();
+        let (lo, hi) = self.0.widening_mul(&Self::redc(lo, hi));
+        Self {
+            0: Self::redc(lo, hi),
+            1: Default::default(),
+        }
+    }
+
+    /// Compute <i>r</i> = <i>u&#8315;&sup1;</i> = <i>u&#x1D56;&#8315;&sup2;</i> mod <i>n</i>
+    /// for <i>u</i> &#x2254; `self`, which satisfies
+    /// <i>r&times;u</i> mod <i>n</i> = <i>1</i> if <i>u &ne; 0</i>.
+    ///
+    /// NB: crypto_bigint::Uint seems to offer an inversion functionality, but frankly,
+    /// the usage instructions are poorly documented at best, entirely missing at worst.
+    #[inline]
+    fn inv(&self) -> Self {
+        let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
+        self.pow(n - Uint::from_word(2)) // inv exponent: n - 2
     }
 }
 
@@ -578,6 +636,14 @@ mod tests {
             //println!("e1^-1  = {}", e1.inv());
             //println!("e1*e1^-1 = {}", e1*e1.inv());
             assert!(bool::from((e1*e1.inv()).is_one() | e1.is_zero()));
+
+            // square roots:
+            let sr1 = e1.sqrt();
+            //println!("e1         = {}", e1);
+            //println!("leg(e1)    = {}", e1.legendre());
+            //println!("sqrt(e1)   = {}", sr1);
+            //println!("sqrt(e1)^2 = {}", sr1.sq());
+            assert!(sr1.sq() == e1 || e1.legendre() < 0);
 
             // hybrid multiplication (Word*BNZn and Uint*BNZn):
             let k1: Word = rng.next_u64() & 0xF;

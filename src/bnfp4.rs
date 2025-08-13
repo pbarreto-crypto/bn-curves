@@ -4,7 +4,7 @@ compile_error!("this crate requires 64-bit limbs");
 use crate::bnfp::BNFp;
 use crate::bnfp2::BNFp2;
 use crate::bnparam::BNParam;
-use crate::traits::One;
+use crate::traits::{BNField, One};
 use crypto_bigint::{Random, Uint, Word, Zero};
 use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
@@ -56,33 +56,6 @@ impl<BN: BNParam, const LIMBS: usize> BNFp4<BN, LIMBS> {
         }
     }
 
-    /// Convert `self` to serialized (byte array) representation.
-    #[inline]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut rev = self.re.to_bytes();
-        let mut imv = self.im.to_bytes();
-        rev.append(&mut imv);
-        rev
-    }
-
-    /// Compute the value of twice this element.
-    #[inline]
-    pub(crate) fn double(&self) -> Self {
-        Self {
-            re: self.re.double(),
-            im: self.im.double(),
-        }
-    }
-
-    /// Compute the value of half this element.
-    #[inline]
-    pub(crate) fn half(&self) -> Self {
-        Self {
-            re: self.re.half(),
-            im: self.im.half(),
-        }
-    }
-
     /// Complex conjugate of this <b>F</b><sub><i>p&#x2074;</i></sub> element,
     /// namely, if this element is <i>u + vw</i>, return <i>u - vw</i>.
     #[inline]
@@ -103,13 +76,13 @@ impl<BN: BNParam, const LIMBS: usize> BNFp4<BN, LIMBS> {
         }
     }
 
-    /// Compute <i>x&middot;self - y&middot;conj(self)</i>.
+    /// Compute <i>`u`&times;`self` - `v`&times;conj(`self`)</i>.
     #[inline]
-    fn ch(&self, x: &BNFp4<BN, LIMBS>, y: &BNFp4<BN, LIMBS>) -> BNFp4<BN, LIMBS> {
+    fn ch(&self, u: &BNFp4<BN, LIMBS>, v: &BNFp4<BN, LIMBS>) -> BNFp4<BN, LIMBS> {
         // (x.re + x.im*w)*(s.re + s.im*w) - (y.re + y.im*w)*(s.re - s.im*w) =
         // (x.re - y.re)*s.re + (x.im + y.im)*s.im*xi + ((x.im - y.im)*s.re + (x.re + y.re)*s.im)*w
-        let re = (x.re - y.re)*self.re + (x.im + y.im)*self.im.mul_xi();
-        let im = (x.im - y.im)*self.re + (x.re + y.re)*self.im;
+        let re = (u.re - v.re)*self.re + (u.im + v.im)*self.im.mul_xi();
+        let im = (u.im - v.im)*self.re + (u.re + v.re)*self.im;
         Self {
             re,
             im,
@@ -174,41 +147,6 @@ impl<BN: BNParam, const LIMBS: usize> BNFp4<BN, LIMBS> {
         // (u + v*w)*(u - v*w) = u^2 - v^2*w^2 = u^2 - v^2*xi
         self.re.sq() - self.im.sq().mul_xi()
     }
-
-    /// Compute the square of this <b>F</b><sub><i>p&#x2074;</i></sub> element.
-    #[inline]
-    pub(crate) fn sq(self) -> Self {
-        // (u + v*w)^2 = u^2 + v^2*w^2 + 2*u*v*w = (u^2 + v^2*xi) + ((u + v)^2 - u^2 - v^2)*w
-        let u2 = self.re.sq();
-        let v2 = self.im.sq();
-        let uv = (self.re + self.im).sq();
-        Self {
-            re: u2 + v2.mul_xi(),
-            im: uv - u2 - v2
-        }
-    }
-
-    /// Compute the cube of this <b>F</b><sub><i>p&sup2;</i></sub> element.
-    #[inline]
-    pub(crate) fn cb(&self) -> Self {
-        // (u + v*w)^3 = u*((u^2 + v^2*xi) + 2*v^2*xi) + v*(2*u^2 + (u^2 + v^2*xi))*w
-        let re2 = self.re.sq();
-        let im2 = self.im.sq().mul_xi();
-        let s = re2 + im2;
-        Self {
-            re: self.re*(s + im2 + im2),
-            im: self.im*(re2 + re2 + s)
-        }
-    }
-
-    /// Compute the inverse of this <b>F</b><sub><i>p&#x2074;</i></sub> element
-    /// (or 0, if this element is itself 0).
-    #[inline]
-    pub(crate) fn inv(&self) -> Self {
-        // (u + v*w)^-1 = (u - v*w)/((u + v*w)((u - v*w))
-        // = (u - v*w)/(u^2 - v^2*xi) = norm^-1*conj.
-        self.norm().inv()*self.conj()
-    }
 }
 
 impl<BN: BNParam, const LIMBS: usize> Add for BNFp4<BN, LIMBS> {
@@ -226,6 +164,70 @@ impl<BN: BNParam, const LIMBS: usize> AddAssign for BNFp4<BN, LIMBS> {
     fn add_assign(&mut self, rhs: Self) {
         self.re += rhs.re;
         self.im += rhs.im;
+    }
+}
+
+impl<BN: BNParam, const LIMBS: usize> BNField for BNFp4<BN, LIMBS> {
+    /// Convert `self` to serialized (byte array) representation.
+    #[inline]
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut rev = self.re.to_bytes();
+        let mut imv = self.im.to_bytes();
+        rev.append(&mut imv);
+        rev
+    }
+
+    /// Compute the value of twice this element.
+    #[inline]
+    fn double(&self) -> Self {
+        Self {
+            re: self.re.double(),
+            im: self.im.double(),
+        }
+    }
+
+    /// Compute the value of half this element.
+    #[inline]
+    fn half(&self) -> Self {
+        Self {
+            re: self.re.half(),
+            im: self.im.half(),
+        }
+    }
+
+    /// Compute the square of this <b>F</b><sub><i>p&#x2074;</i></sub> element.
+    #[inline]
+    fn sq(&self) -> Self {
+        // (u + v*w)^2 = u^2 + v^2*w^2 + 2*u*v*w = (u^2 + v^2*xi) + ((u + v)^2 - u^2 - v^2)*w
+        let u2 = self.re.sq();
+        let v2 = self.im.sq();
+        let uv = (self.re + self.im).sq();
+        Self {
+            re: u2 + v2.mul_xi(),
+            im: uv - u2 - v2
+        }
+    }
+
+    /// Compute the cube of this <b>F</b><sub><i>p&sup2;</i></sub> element.
+    #[inline]
+    fn cb(&self) -> Self {
+        // (u + v*w)^3 = u*((u^2 + v^2*xi) + 2*v^2*xi) + v*(2*u^2 + (u^2 + v^2*xi))*w
+        let re2 = self.re.sq();
+        let im2 = self.im.sq().mul_xi();
+        let s = re2 + im2;
+        Self {
+            re: self.re*(s + im2 + im2),
+            im: self.im*(re2 + re2 + s)
+        }
+    }
+
+    /// Compute the inverse of this <b>F</b><sub><i>p&#x2074;</i></sub> element
+    /// (or 0, if this element is itself 0).
+    #[inline]
+    fn inv(&self) -> Self {
+        // (u + v*w)^-1 = (u - v*w)/((u + v*w)((u - v*w))
+        // = (u - v*w)/(u^2 - v^2*xi) = norm^-1*conj.
+        self.norm().inv()*self.conj()
     }
 }
 

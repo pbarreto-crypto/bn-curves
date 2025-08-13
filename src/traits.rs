@@ -1,4 +1,6 @@
 use crypto_bigint::subtle::{Choice, ConstantTimeEq};
+use crypto_bigint::Uint;
+use sha3::{Shake128, Shake256};
 
 /// Multiplicative identity (unity).
 pub trait One: ConstantTimeEq + Sized {
@@ -27,4 +29,31 @@ pub trait One: ConstantTimeEq + Sized {
         ret.set_one();
         ret
     }
+}
+
+pub trait BNField {
+
+    /// Convert `self` to byte array representation.
+    #[inline]
+    fn to_bytes(&self) -> Vec<u8>;
+
+    /// Compute the value of 2&times;`self`.
+    #[inline]
+    fn double(&self) -> Self;
+
+    /// Compute the value of `self`/2.
+    #[inline]
+    fn half(&self) -> Self;
+
+    /// Compute `self`&sup2;.
+    #[inline]
+    fn sq(&self) -> Self;
+
+    /// Compute `self`&sup3;.
+    #[inline]
+    fn cb(&self) -> Self;
+
+    /// Compute the inverse of `self` (or 0, if `self` itself is zero).
+    #[inline]
+    fn inv(&self) -> Self;
 }

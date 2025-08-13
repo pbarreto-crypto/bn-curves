@@ -4,14 +4,14 @@ compile_error!("this crate requires 64-bit limbs");
 use crate::bnfp::BNFp;
 use crate::bnfp2::BNFp2;
 use crate::bnparam::BNParam;
-use crate::traits::One;
-use crypto_bigint::{Random, Uint, Word, Zero};
+use crate::bnzn::BNZn;
+use crate::traits::{BNField, One};
+use crypto_bigint::{Random, Uint, Zero};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
+use crypto_bigint::rand_core::TryRngCore;
 use rand::Rng;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
-use crypto_bigint::rand_core::TryRngCore;
-use crate::bnzn::BNZn;
 
 pub struct BNPoint2<BN: BNParam, const LIMBS: usize> {
     pub(crate) x: BNFp2<BN, LIMBS>,
@@ -43,6 +43,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     /// from a given affine <i>X'</i>-coordinate and the least significant bit (LSB) of the <i>Y'</i>-coordinate.
     ///
     /// NB: specify y_lsb as Choice::FALSE if LSB==0 and as Choice::TRUE if LSB==1.
+    #[inline]
     pub(crate) fn new(x: BNFp2<BN, LIMBS>, y_lsb: Choice) -> Self {
         let bt = BNFp2::from_base(BNFp::from_word(BN::CURVE_B)).div_xi();
         let y2 = x.cb() + bt;
@@ -54,6 +55,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
 
     /// Determine if given projective coordinates <i>X'</i>, <i>Y'</i>, and <i>Z'</i>
     /// specify a point on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>.
+    #[inline]
     pub fn is_point(x: BNFp2<BN, LIMBS>, y: BNFp2<BN, LIMBS>, z: BNFp2<BN, LIMBS>) -> Choice {
         // projective curve equation: Y'^2*Z' = X'^3 + b'*Z'^3 where b' = b/xi
         (y.sq()*z).ct_eq(&(x.cb() + BNFp2::from_word(BN::CURVE_B).div_xi()*z.cb()))
@@ -62,6 +64,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     /// Create a normalized point on a BN curve twist
     /// <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
     /// from given affine coordinates <i>X'</i> and <i>Y'</i>.
+    #[inline]
     fn from_affine(x: BNFp2<BN, LIMBS>, y: BNFp2<BN, LIMBS>) -> Self {
         assert!(bool::from(Self::is_point(x, y, BNFp2::one())));
         Self { x, y, z: BNFp2::one() }
@@ -69,6 +72,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
 
     /// Create a point on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
     /// from given projective coordinates <i>X'</i>, <i>Y'</i>, and <i>Z'</i>.
+    #[inline]
     pub(crate) fn from_proj(x: BNFp2<BN, LIMBS>, y: BNFp2<BN, LIMBS>, z: BNFp2<BN, LIMBS>) -> Self {
         assert!(bool::from(Self::is_point(x, y, z)));
         Self { x: x.clone(), y: y.clone(), z: z.clone() }
@@ -76,6 +80,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
 
     /// Create an instance of the default generator of <i>n</i>-torsion <i>G&#x2082; &#x2254; (-i, 1)</i>
     /// on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>.
+    #[inline]
     pub fn default_generator() -> Self {
         Self::new(-BNFp2::i(), Choice::from(1)).elim_cof()
     }
@@ -84,12 +89,14 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     /// <b>G</b><i>&#x2082;</i> &#x2254; <i>E'</i>&lbrack;<i>n</i>&rbrack;(<b>F</b><sub><i>p&sup2;</i></sub>)
     /// of a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
     /// with SHAKE-256.
+    #[inline]
     pub fn shake256(data: &[u8]) -> Self {
         Self::point_factory(BNFp2::shake256(data)).elim_cof()
     }
 
     /// Compute a normalized (i.e. affine) point equivalent to this
     /// on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>.
+    #[inline]
     pub(crate) fn normalize(&self) -> Self {
         let ch = self.z.is_zero();
         let inv = BNFp2::conditional_select(&self.z, &self.y, ch).inv();
@@ -103,6 +110,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     /// Compute &lbrack;<i>2&#x1D57;</i>&rbrack;<i>Q'</i> for a BN curve twist point
     /// <i>Q'</i> &in; <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
     /// (i.e. double <i>t</i> times) via complete elliptic point doubling.
+    #[inline]
     pub(crate) fn double(&self, t: usize) -> Self {
         let mut d = self.clone();
         d.double_self(t);
@@ -119,6 +127,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     /// <a href="https://link.springer.com/content/pdf/10.1007/978-3-662-49890-3_16">
     /// "Complete addition formulas for prime order elliptic curves"</a>
     /// (Algorithm 9), Eurocrypt 2016, LNCS 9665 (part I), pp. 403--428, Springer, 2016.
+    #[inline]
     pub(crate) fn double_self(&mut self, t: usize) {
         let mut x = self.x;
         let mut y = self.y;
@@ -184,10 +193,11 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     /// Lecture Notes in Computer Science, vol. 4076, pp. 510--524, 2006.
     /// Springer, Berlin Heidelberg, 2006.
     /// https://doi.org/10.1007/11792086_36
+    #[inline]
     pub fn point_factory(t: BNFp2<BN, LIMBS>) -> BNPoint2<BN, LIMBS> {
         let one = BNFp2::one();
         let bt = BNFp2::from(BNFp::from_word(BN::FIELD_XI_RE), -BNFp::from_word(BN::FIELD_XI_IM));
-        let sqrt_m3: BNFp<BN, LIMBS> = BNFp::from_uint(Uint::from_words(<[Word; LIMBS]>::try_from(BN::SQRT_NEG_3).unwrap()));
+        let sqrt_m3 = BNFp::from_words(BN::SQRT_NEG_3.try_into().unwrap());
         let num = sqrt_m3*t;  // sqrt(-3)*t
         let den = one + bt + t.sq();  // 1 + b + t^2
         // Montgomery's trick to use a single inversion, (num*den)^-1, to compute
@@ -196,7 +206,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
 
         let w = num.sq()*monty;  // sqrt(-3)*t/(1 + b + t^2)
         let inv_w = den.sq()*monty;
-        let svdw: BNFp2<BN, LIMBS> = BNFp2::from_base(BNFp::from_uint(Uint::from_words(<[Word; LIMBS]>::try_from(BN::SVDW).unwrap())));  // (-1 + sqrt(-3))/2
+        let svdw = BNFp2::from_base(BNFp::from_words(BN::SVDW.try_into().unwrap()));  // (-1 + sqrt(-3))/2
 
         // candidate x-coordinates:
         let x0 = svdw - t*w;  // (-1 + sqrt(-3))/2 - t*w
@@ -227,9 +237,10 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     /// <i>&phi;</i>(<i>x'</i>, <i>y'</i>) = (<i>x'&xi;<sup>&frac13;</sup></i>, <i>y'&xi;<sup>&half;</sup></i>) and
     /// <i>&pi;</i> : <i>E</i> &#8594; <i>E</i> is the Frobenius endomorphism on <i>E</i>,
     /// <i>&pi;</i>(<i>x</i>, <i>y</i>) &#x2254; (<i>x&#x1D56;</i>, <i>y&#x1D56;</i>), with <i>0&leq;k&lt;12</i>.
+    #[inline]
     pub(crate) fn psi(&self, k: usize) -> Self {
-        let zeta = BNFp::from_words(<[Word; LIMBS]>::try_from(BN::ZETA).unwrap());
-        let sigma = BNFp::from_words(<[Word; LIMBS]>::try_from(BN::THETA).unwrap());
+        let zeta = BNFp::from_words(BN::ZETA.try_into().unwrap());
+        let sigma = BNFp::from_words(BN::THETA.try_into().unwrap());
         let one = BNFp::one();
         assert!(k < 12);
         match k {
@@ -294,6 +305,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     }
 
     /// Compute <i>&lbrack;u&rbrack;Q</i>.
+    #[inline]
     fn mul_u(&self) -> Self {
         // prepare a table such that tab[d] = d*Q, where 0 <= d < 16:
         let mut tab = [Self::zero(); 16];
@@ -348,12 +360,29 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     /// Springer, Berlin Heidelberg (2012).
     /// https://doi.org/10.1007/978-3-642-28496-0_25
     #[allow(non_snake_case)]
+    #[inline]
     pub fn elim_cof(&self) -> Self {
         let Q = *self;
         let uQ = Q.mul_u();  // [u]Q
         let u3Q = uQ.double(1) + uQ;  // [3u]Q
         uQ + u3Q.psi(1) + uQ.psi(2) + Q.psi(3)
     }
+
+    /// Convert `self` to byte array representation.
+    /// This is the ANSI X9.62 Point-to-Octet-String Conversion primitive, compressed form.
+    #[allow(non_snake_case)]
+    #[inline]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let N = self.normalize();
+        /// ANSI X9.62 'compressed' prefix: 0x02 | lsb(N.y)
+        let mut cp = 0x2u8;  // lsb(N.y) == 0
+        cp.conditional_assign(&0x3u8, N.y.is_odd());  // lsb(N.y) == 1
+        let mut bytes = Vec::new();
+        bytes.push(cp);
+        let mut next = N.x.to_bytes(); bytes.append(&mut next);
+        bytes
+    }
+
 }
 
 impl<BN: BNParam, const LIMBS: usize> Add for BNPoint2<BN, LIMBS> {

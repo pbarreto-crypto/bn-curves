@@ -1,5 +1,5 @@
 //! This crate implements elliptic curve arithmetic and bilinear pairings for Barreto-Naehrig (BN) curves.
-//! It has been created to commemorate the 20th anniversary of the discovery of those curves in 2005.
+//! It was created to commemorate the 20th anniversary of the discovery of those curves in 2005.
 //!
 //! A BN curve is specified by an integer parameter <i>u</i> &#8712; &Zopf; such that the value
 //! <i>p</i> &#x2254; <i>36u&#x2074; + 36u&sup3; + 24u&sup2; + 6u + 1</i> is prime, defining a finite field
@@ -8,8 +8,9 @@
 //! The additional constraint <i>p &equiv; 3 (mod 4)</i> is typical, since it enables specifying
 //! the quadratic extension <b>F</b><sub><i>p&sup2;</i></sub> = <b>F</b><sub><i>p</i></sub>&lbrack;<i>i</i>&rbrack;/&lt;<i>i&sup2; + 1</i>&gt;
 //! and the tower-friendly extension fields
-//! <b>F</b><sub><i>p&#x2074;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>&tau;</i>&rbrack;/&lt;<i>&tau;&sup2; + &xi;</i>&gt; and
-//! <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>z</i>&rbrack;/&lt;<i>z&#x2076; + &xi;</i>&gt;,
+//! <b>F</b><sub><i>p&#x2074;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>&sigma;</i>&rbrack;/&lt;<i>&sigma;&sup2; - &xi;</i>&gt;,
+//! <b>F</b><sub><i>p&#x2076;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>&tau;</i>&rbrack;/&lt;<i>&tau;&sup3; - &xi;</i>&gt;,
+//! and <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>z</i>&rbrack;/&lt;<i>z&#x2076; - &xi;</i>&gt;,
 //! where <i>&xi;</i> = <i>1 + i</i>.
 //!
 //! The BN curve equation is <i>E</i>/<b>F</b><sub><i>p</i></sub> : <i>Y&sup2;Z</i> = <i>X&sup3; + bZ&sup3;</i>,
@@ -37,6 +38,10 @@
 //! is the point <i>G'</i> &#x2254; &lbrack;<i>h'</i>&rbrack;<i>G&#x2080;'</i> where <i>G&#x2080;'</i> &#x2254; &lbrack;-<i>i</i> : <i>1</i> : <i>1</i>&rbrack;.
 //! The maximum supported size is LIMBS = 12.
 //!
+//! All feasible care has been taken to make sure the arithmetic algorithms adopted in this crate
+//! are isochronous ("constant-time") and efficient.
+//! Yet, the no-warranty clause of the MIT license is in full force for this whole crate.
+//!
 //! References:
 //!
 //! * Paulo S. L. M. Barreto, Michael Naehrig:
@@ -49,20 +54,22 @@
 //! "A Family of Implementation-Friendly BN Elliptic Curves."
 //! <i>Journal of Systems and Software</i>, vol. 84, no. 8, pp. 1319--1326.
 //! Elsevier, 2011. https://doi.org/10.1016/j.jss.2011.03.083
+//!
+//! NB: This file was, and future versions should always be, created automatically by the `bnparamgen` tool.
 
-use crypto_bigint::{Word};
+use crypto_bigint::Word;
 
 pub trait BNParam {
     const U: &'static [Word];                 // the BN curve selector, in absolute value
     const LIMBS: usize;                       // number of limbs required to represent a base field element
     const MODULUS: &'static [Word];           // base finite field modulus p = 36*u^4 + 36*u^3 + 24*u^2 - 6*u + 1
     const NEG_INV_MOD: &'static [Word];       // -1/p mod 2^(64*LIMBS)
-    const MONTY: &'static [Word];             // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word];           // (2^(64*LIMBS))^2 mod p
     const ORDER: &'static [Word];             // cryptographic group order n = 36*u^4 - 36*u^3 + 18*u^2 - 6*u + 1
     const NEG_INV_ORD: &'static [Word];       // -1/n mod 2^(64*LIMBS)
     const MONTY_N: &'static [Word];           // (2^(64*LIMBS))^2 mod n
     const SQRT_NEG_3: &'static [Word];        // sqrt(-3) mod p
-    const SVDW: &'static [Word];              // (-1 + sqrt(-3))/2 mod p
+    const SVDW: &'static [Word];              // (-1 + sqrt(-3))/2 mod p, the Shallue & van de Woestijne constant
     const ZETA: &'static [Word];              // primitive cube root ζ = -(18*u^3 - 18*u^2 + 9*u - 1) of unity, in absolute value
     const THETA: &'static [Word];             // (-1/4)^((p + 5)/24)
     const OMEGA: &'static [Word];             // order of optimal pairing, |6*u + 2|
@@ -88,7 +95,7 @@ impl BNParam for BN062Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0xDB8AD7BBB2FD8A15,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0xDE55803DB05C038,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -137,7 +144,7 @@ impl BNParam for BN126Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0xB9FEE1E4AAD035E5, 0xD8FE23566120ACCF,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0x8FDF6EF1F4090A17, 0x1635B2CFD9DA7EF5,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -186,7 +193,7 @@ impl BNParam for BN190Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0x2B8614F2979435E5, 0xBE12481DDD063F8C, 0x453F3253D277C95C,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0xD0B5EB9319DF6C9, 0xE37D55E42AF76A15, 0x1D4ED66E1AFD74DB,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -235,7 +242,7 @@ impl BNParam for BN254Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0x8435E50D79435E5, 0x6E371BA81104F6C8, 0x92022379C45B843C, 0xB65373CCBA60808C,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0xB3E886745370473D, 0x55EFBF6E8C1CC3F1, 0x281E3A1B7F86954F, 0x1B0A32FDF6403A3D,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -284,7 +291,7 @@ impl BNParam for BN318Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0x4938437C6AACADE5, 0x7B96E8C7B0EDE444, 0xEFBFE36641C45E10, 0xFDA833931631A6CD, 0x3E74ABE4BFC2A771,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0xCB414550A0290D0F, 0xE8F195C8F5302C3F, 0x7D96F275A3A6DC14, 0x42F53ACEFC6FFB9, 0x209EFE19B36785E2,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -333,7 +340,7 @@ impl BNParam for BN382Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0x79435E50D79435E5, 0x8827B640AFDE30D, 0x861567FE0E908DD4, 0x9C7031B652D43848, 0xEF8597D0478E604F, 0x3582C27A42FDCD8D,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0x69AD4AB90DB04BC, 0xE80C0A3EDDDD6274, 0xC9E6B470CE70B141, 0x65605B2172BA3FCF, 0xB6995178418E89C9, 0x79948F5FBE4C744,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -382,7 +389,7 @@ impl BNParam for BN446Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0xC35E50D79435E5, 0xB0E9AA31A3CFC745, 0xEE2AE5CE18B53DD7, 0xD2CCA970525D198F, 0xF3C754B67F9BCEF6, 0x2D6E49FABA499912, 0xA4E6A39449100EAC,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0xE26FA0B04A7F400A, 0xEC8DF54C75504D52, 0x75E8ACEEAA6E88B0, 0xBAA7137AE1D5FA30, 0x4BAF0A759734FF4C, 0xF5CACE4BB4B43382, 0x1A05DC7494424D1,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -431,7 +438,7 @@ impl BNParam for BN510Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0xABCC7C5D9B5435E5, 0x77EB05E52AF9A9, 0x92D19BCFEE819E18, 0x544B0ABCE11D817, 0xBAC7C6FC4B941639, 0xC73A63EC6417A437, 0xA2F81BB694813DF1, 0xDA575D9097C2877D,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0x8FF9B35B594AD2F3, 0x710489408C0D6947, 0x287A063966FDD1A6, 0x82D87D6178A931A4, 0x321DF12CA4FD4C77, 0xB61365671746C689, 0x2C1CBC4C3A55B66B, 0x18D67A6DED8E4F79,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -480,7 +487,7 @@ impl BNParam for BN574Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0x79435E50D79435E5, 0xD573B2B79435E50D, 0xAAE72E181C5DAADB, 0x2B196D77F0378DB7, 0xB003025784E029CD, 0x95FDEC62D039118B, 0xFAF0E2CFC7A406C4, 0xB02FBFC8CCBEEBCB, 0x3DD84BAAB5C50D6C,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0xEF7A4CB77C262E, 0xCA84F4386EF5CDC2, 0xE5B9AF37D3363D0E, 0x1D95096FF9D5EC2D, 0xE362428F3FEC2124, 0x7E94E7177C7BA6FC, 0xCEC8D4217B360C05, 0x4322F70A4A23AC8F, 0x30A6E5281DCAC056,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -529,7 +536,7 @@ impl BNParam for BN638Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0xAE016B14979435E5, 0x968821CD95843C76, 0xCD45612C9257ED74, 0x7E48BD1138EA2146, 0x90ABA2C4D34669C6, 0x15015D95B7C01DC9, 0xEE610D29FF571C5A, 0x22EEE76581894B1C, 0x58F54B50E055CE9F, 0x16B9809208400D9C,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0x81604B883BF65D0E, 0xFA354A78F3191E15, 0xFA2E0C8C1347BA4D, 0x663BD79A447C6F3F, 0xD4A87450A9DFC703, 0x1ED5644D5C089835, 0x5C7E534E700E9ADB, 0x679ED767BD9AEE59, 0x97BCDFCEEB117B77, 0x190B390BECB2A305,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -578,7 +585,7 @@ impl BNParam for BN702Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0x8A89EAC34457F5E5, 0xA6DEE06F4751C1EB, 0xE6A557E0642ACB45, 0x681EC38A841C3478, 0xF22AD035F2F00819, 0x2EE680A493ECCF6B, 0xF58B0303059E131F, 0x65162FB87DB16AB7, 0x8AAE6581FA357FD9, 0xE8A08B01D1ABDB8F, 0xE7FE7A1874568228,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0x660B6A1652A7DC3F, 0xEBFFD293202D540A, 0x53F883FB95620072, 0x4DAC63A3CE161627, 0x4D02C46D6AA140E7, 0x4FB57BC035BCBD7D, 0x1384F18E73531B2F, 0x1AF9B9C49A8743B1, 0xDB928CD3529FB2E2, 0x8E405630A53CA953, 0x233B0FF3EF7EDAAF,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order
@@ -627,7 +634,7 @@ impl BNParam for BN766Param {
     const NEG_INV_MOD: &'static [Word] = &[  // -1/p mod 2^(64*LIMBS)
         0xCDAF8043A0C525E5, 0xED5E9DA32E7C38DB, 0x1F701FECA852DA25, 0xB1DCCC56509F8596, 0xE9C4FFD651D24808, 0x56D6011E21691A28, 0x142DC05D035400D3, 0x9C925810E0ED2CAB, 0xA0D339C4D65F532C, 0x842CB2FA8B92B067, 0xD7F793ABD7A5A7CE, 0x7A19DF8ABB39C4CE,
     ];
-    const MONTY: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
+    const MONTY_P: &'static [Word] = &[  // (2^(64*LIMBS))^2 mod p
         0xE1A66C324F546628, 0x1B9B39E585B59694, 0x99019B52C9CB1098, 0xFFE5F03E74F63F17, 0x333D4F00CF7A6BC2, 0x54D2C263C886FC37, 0x5A08B37C128E365D, 0x616F164271EEB2C2, 0x971D190CE3225860, 0x5902667FA15A310E, 0xF97E2F4724038FFC, 0x39193E63A38C3270,
     ];
     const ORDER: &'static [Word] = &[  // cryptographic group order

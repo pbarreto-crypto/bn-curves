@@ -2,16 +2,16 @@
 compile_error!("this crate requires 64-bit limbs");
 
 use crate::bnparam::BNParam;
-use crate::traits::One;
+use crate::traits::{BNField, One};
 use crypto_bigint::{Integer, Limb, NonZero, Random, Uint, Word, Zero};
 use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeLess};
+use rand::Rng;
 use sha3::{Shake128, Shake256};
 use sha3::digest::ExtendableOutput;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
-use rand::Rng;
 
 pub struct BNFp<BN: BNParam, const LIMBS: usize>(
     #[doc(hidden)]
@@ -38,7 +38,6 @@ pub type BN766Fp = BNFp<BN766Param, 12>;
 
 
 impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
-
     /// Montgomery reduction of <i>t</i> = (<i>t_lo</i>, <i>t_hi</i>) in range 0..&lt;<i>p&times;2&#x02B7;</i>,
     /// where <i>p &lt; 2&#x02B7;</i> is the BN modulus and <i>w</i> &#x2254; <i>64&times;LIMBS</i>.
     ///
@@ -63,7 +62,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
     /// redc((<i>w</i> mod <i>p</i>)&middot;(<i>r&sup2;</i> mod <i>p</i>)), where <i>r > p</i> is a power of 2.
     #[inline]
     pub fn from_uint(w: Uint<LIMBS>) -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY.try_into().unwrap());
+        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
         let (lo, hi) = w.widening_mul(&r2);
         Self {
             0: Self::redc(lo, hi),
@@ -77,7 +76,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
     /// redc((<i>w</i> mod <i>p</i>)&middot;(<i>r&sup2;</i> mod <i>p</i>)), where <i>r > p</i> is a power of 2.
     #[inline]
     pub fn from_word(w: Word) -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY.try_into().unwrap());
+        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
         let (lo, hi) = Uint::from_word(w).widening_mul(&r2);
         Self {
             0: Self::redc(lo, hi),
@@ -91,7 +90,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
     /// redc((<i>w</i> mod <i>p</i>)&middot;(<i>r&sup2;</i> mod <i>p</i>)), where <i>r > p</i> is a power of 2.
     #[inline]
     pub(crate) fn from_words(v: [Word; LIMBS]) -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY.try_into().unwrap());
+        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
         let (lo, hi) = Uint::from_words(v).widening_mul(&r2);
         Self {
             0: Self::redc(lo, hi),
@@ -99,7 +98,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
         }
     }
 
-    /// Hash input data into a base field element with SHAKE-128.
+    /// Hash input data into a field element with SHAKE-128.
     ///
     /// Twice as much hash output is converted to the field element via Montgomery reduction.
     /// This ensures the deviation from uniform sampling over <b>F</b><sub><i>p</i></sub>
@@ -118,7 +117,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
         }
     }
 
-    /// Hash input data into a base field element with SHAKE-256.
+    /// Hash input data into a field element with SHAKE-256.
     ///
     /// Twice as much hash output is converted to the field element via Montgomery reduction.
     /// This ensures the deviation from uniform sampling over <b>F</b><sub><i>p</i></sub>
@@ -184,78 +183,6 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
         Self::redc(self.0, Uint::ZERO)
     }
 
-    /// Convert `self` to serialized (byte array) representation.
-    #[inline]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let binding = self.to_uint();
-        let val = binding.as_words();
-        assert_eq!(val.len(), LIMBS);
-        let mut bytes = Vec::<u8>::with_capacity(LIMBS << 3);
-        for j in 0..LIMBS {
-            let u = val[j];
-            bytes.push(u as u8);
-            bytes.push((u >> 8) as u8);
-            bytes.push((u >> 16) as u8);
-            bytes.push((u >> 24) as u8);
-            bytes.push((u >> 32) as u8);
-            bytes.push((u >> 40) as u8);
-            bytes.push((u >> 48) as u8);
-            bytes.push((u >> 56) as u8);
-        }
-        bytes
-    }
-
-    /// Determine if the plain representation of this element is odd.
-    #[inline]
-    pub(crate) fn is_odd(&self) -> Choice {
-        Self::redc(self.0, Uint::ZERO).is_odd()
-    }
-
-    /// Compute the value of twice this element.
-    #[inline]
-    pub(crate) fn double(&self) -> Self {
-        let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
-        Self {
-            0: self.0.add_mod(&self.0, &p),
-            1: Default::default(),
-        }
-    }
-
-    /// Compute <i>u/2 mod p</i>.
-    ///
-    /// Technique: if the lift of <i>u</i> (either in plain or in Montgomery form)
-    /// to &Zopf; is even, a right-shift does the required division;
-    /// if it is odd, then <i>u + p</i> is even, and <i>0 <= (u + p) >> 1 < p</i> is the desired value.
-    #[inline]
-    pub(crate) fn half(&self) -> Self {
-        let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
-        Self {
-            0: Uint::conditional_select(&self.0, &self.0.add(p), self.0.is_odd()) >> 1,
-            1: Default::default(),
-        }
-    }
-
-    /// Compute the square of a field element.
-    #[inline]
-    pub(crate) fn sq(&self) -> Self {
-        let (lo, hi) = self.0.square_wide();
-        Self {
-            0: Self::redc(lo, hi),
-            1: Default::default(),
-        }
-    }
-
-    /// Compute the cube of a field element.
-    #[inline]
-    pub(crate) fn cb(&self) -> Self {
-        let (lo, hi) = self.0.square_wide();
-        let (lo, hi) = self.0.widening_mul(&Self::redc(lo, hi));
-        Self {
-            0: Self::redc(lo, hi),
-            1: Default::default(),
-        }
-    }
-
     /// Compute <i>v</i> = `self`<i>&#x02E3;</i> mod <i>p</i>.
     #[inline]
     fn pow(&self, x: Uint<LIMBS>) -> Self {
@@ -273,16 +200,10 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
         v
     }
 
-    /// Compute <i>r</i> = <i>u&#8315;&sup1;</i> = <i>u&#x1D56;&#8315;&sup2;</i> mod <i>p</i>
-    /// for <i>u</i> &#x2254; `self`, which satisfies
-    /// <i>r&times;u</i> mod <i>p</i> = <i>1</i> if <i>u &ne; 0</i>.
-    ///
-    /// NB: crypto_bigint::Uint seems to offer an inversion functionality, but frankly,
-    /// the usage instructions are poorly documented at best, entirely missing at worst.
+    /// Determine if the plain representation of `self` is odd.
     #[inline]
-    pub(crate) fn inv(&self) -> Self {
-        let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
-        self.pow(p - Uint::from_word(2)) // inv exponent: p - 2
+    pub(crate) fn is_odd(&self) -> Choice {
+        Self::redc(self.0, Uint::ZERO).is_odd()
     }
 
     /// Compute <i>r</i> = <i>&radic;`self`</i> = <i>`self`<sup>(p+1)/4</sup></i> mod <i>p</i>,
@@ -396,6 +317,86 @@ impl<BN: BNParam, const LIMBS: usize> AddAssign for BNFp<BN, LIMBS> {
     fn add_assign(&mut self, rhs: Self) {
         let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
         self.0 = self.0.add_mod(&rhs.0, &p);
+    }
+}
+
+impl<BN: BNParam, const LIMBS: usize> BNField for BNFp<BN, LIMBS> {
+    /// Convert `self` to byte array representation.
+    #[inline]
+    fn to_bytes(&self) -> Vec<u8> {
+        let binding = self.to_uint();
+        let val = binding.as_words();
+        assert_eq!(val.len(), LIMBS);
+        let mut bytes = Vec::<u8>::with_capacity(LIMBS << 3);
+        for j in 0..LIMBS {
+            let u = val[j];
+            bytes.push(u as u8);
+            bytes.push((u >> 8) as u8);
+            bytes.push((u >> 16) as u8);
+            bytes.push((u >> 24) as u8);
+            bytes.push((u >> 32) as u8);
+            bytes.push((u >> 40) as u8);
+            bytes.push((u >> 48) as u8);
+            bytes.push((u >> 56) as u8);
+        }
+        bytes
+    }
+
+    /// Compute the value of twice this element.
+    #[inline]
+    fn double(&self) -> Self {
+        let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
+        Self {
+            0: self.0.add_mod(&self.0, &p),
+            1: Default::default(),
+        }
+    }
+
+    /// Compute <i>u/2 mod p</i>.
+    ///
+    /// Technique: if the lift of <i>u</i> (either in plain or in Montgomery form)
+    /// to &Zopf; is even, a right-shift does the required division;
+    /// if it is odd, then <i>u + p</i> is even, and <i>0 <= (u + p) >> 1 < p</i> is the desired value.
+    #[inline]
+    fn half(&self) -> Self {
+        let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
+        Self {
+            0: Uint::conditional_select(&self.0, &self.0.add(p), self.0.is_odd()) >> 1,
+            1: Default::default(),
+        }
+    }
+
+    /// Compute the square of a field element.
+    #[inline]
+    fn sq(&self) -> Self {
+        let (lo, hi) = self.0.square_wide();
+        Self {
+            0: Self::redc(lo, hi),
+            1: Default::default(),
+        }
+    }
+
+    /// Compute the cube of a field element.
+    #[inline]
+    fn cb(&self) -> Self {
+        let (lo, hi) = self.0.square_wide();
+        let (lo, hi) = self.0.widening_mul(&Self::redc(lo, hi));
+        Self {
+            0: Self::redc(lo, hi),
+            1: Default::default(),
+        }
+    }
+
+    /// Compute <i>r</i> = <i>u&#8315;&sup1;</i> = <i>u&#x1D56;&#8315;&sup2;</i> mod <i>p</i>
+    /// for <i>u</i> &#x2254; `self`, which satisfies
+    /// <i>r&times;u</i> mod <i>p</i> = <i>1</i> if <i>u &ne; 0</i>.
+    ///
+    /// NB: crypto_bigint::Uint seems to offer an inversion functionality, but frankly,
+    /// the usage instructions are poorly documented at best, entirely missing at worst.
+    #[inline]
+    fn inv(&self) -> Self {
+        let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
+        self.pow(p - Uint::from_word(2)) // inv exponent: p - 2
     }
 }
 
@@ -541,7 +542,7 @@ impl<BN: BNParam, const LIMBS: usize> Neg for BNFp<BN, LIMBS> {
 impl<BN: BNParam, const LIMBS: usize> One for BNFp<BN, LIMBS> {
     #[inline]
     fn one() -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY.try_into().unwrap());
+        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
         Self {
             0: Self::redc(r2, Uint::ZERO),  // (1*r) mod p
             1: Default::default(),
