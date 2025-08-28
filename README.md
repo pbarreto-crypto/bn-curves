@@ -6,11 +6,11 @@ A BN curve is specified by an integer parameter <i>u</i> &#8712; &Zopf; such tha
 <b>F</b><sub><i>p</i></sub>.
 
 The additional constraint <i>p &equiv; 3 (mod 4)</i> is typical, since it enables specifying
-the quadratic extension <b>F</b><sub><i>p&sup2;</i></sub> = <b>F</b><sub><i>p</i></sub>&lbrack;<i>i</i>&rbrack;/&lt;<i>i&sup2; + 1</i>&gt;        
+the quadratic extension <b>F</b><sub><i>p&sup2;</i></sub> = <b>F</b><sub><i>p</i></sub>&lbrack;<i>i</i>&rbrack;/&lt;<i>i&sup2; + 1</i>&gt;
 and the tower-friendly extension fields
-<b>F</b><sub><i>p&#x2074;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>&sigma;</i>&rbrack;/&lt;<i>&sigma;&sup2; - &xi;</i>&gt;,        
+<b>F</b><sub><i>p&#x2074;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>&sigma;</i>&rbrack;/&lt;<i>&sigma;&sup2; - &xi;</i>&gt;,
 <b>F</b><sub><i>p&#x2076;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>&tau;</i>&rbrack;/&lt;<i>&tau;&sup3; - &xi;</i>&gt;,
-and <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>z</i>&rbrack;/&lt;<i>z&#x2076; - &xi;</i>&gt;,  
+and <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>z</i>&rbrack;/&lt;<i>z&#x2076; - &xi;</i>&gt;,
 where <i>&xi;</i> = <i>1 + i</i>.
 
 The BN curve equation is <i>E</i>/<b>F</b><sub><i>p</i></sub> : <i>Y&sup2;Z</i> = <i>X&sup3; + bZ&sup3;</i>,
@@ -22,8 +22,8 @@ The underlying finite field and the number of points are thus related as
 on the curve.
 Incidentally, the curve order satisfies <i>n &equiv; 5 (mod 8)</i>.
 
-The default quadratic twist of the curve is <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>        
-with <i>b'</i> &#x2254; <i>b/&xi;</i>, whose number of points is <i>n'</i> &#x2254; <i>#E'</i>(<b>F</b><sub><i>p&sup2;</i></sub>) = <i>h'n</i>    
+The default quadratic twist of the curve is <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
+with <i>b'</i> &#x2254; <i>b/&xi;</i>, whose number of points is <i>n'</i> &#x2254; <i>#E'</i>(<b>F</b><sub><i>p&sup2;</i></sub>) = <i>h'n</i>
 where <i>h'</i> &#x2254; <i>p - 1 + t</i> is called the cofactor of the curve twist.
 
 All supported curves were selected so that the BN curve parameter is a negative number
