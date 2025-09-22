@@ -12,6 +12,8 @@ use rand::Rng;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+/// The group <b>G&#x2081;</b> &#x2254; <i>E</i>&lbrack;<i>n</i>&rbrack;(<b>F</b><sub><i>p</i></sub>)
+/// of <b>F</b><sub><i>p</i></sub>-rational <i>n</i>-torsion points on the curve <i>E</i>/<b>F</b><sub><i>p</i></sub>.
 pub struct BNPoint<BN: BNParam, const LIMBS: usize> {
     pub(crate) x: BNFp<BN, LIMBS>,
     pub(crate) y: BNFp<BN, LIMBS>,
@@ -83,9 +85,18 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint<BN, LIMBS> {
     }
 
     /// Hash input data into a point on the (base field) <i>n</i>-torsion group
-    /// <i><b>G</b>&#x2081; := E&lbrack;n&rbrack;(<b>F</b><sub>p</sub>)</i>
-    /// of a BN curve <i>E/<b>F</b><sub>p</sub>: Y&sup2;Z = X&sup3; + bZ&sup3;</i>
-    /// with SHAKE-256.
+    /// <i><b>G</b>&#x2081;</i> &#x2254; <i>E</i>&lbrack;<i>n</i>&rbrack;(<b>F</b><sub><i>p</i></sub>)
+    /// of a BLS24 curve <i>E</i>/<b>F</b><sub><i>p</i></sub>:
+    /// <i>Y&sup2;Z</i> = <i>X&sup3;</i> + <i>bZ&sup3;</i> with SHAKE-128.
+    #[inline]
+    pub fn shake128(data: &[u8]) -> Self {
+        Self::point_factory(BNFp::shake128(data))
+    }
+
+    /// Hash input data into a point on the (base field) <i>n</i>-torsion group
+    /// <i><b>G</b>&#x2081;</i> &#x2254; <i>E</i>&lbrack;<i>n</i>&rbrack;(<b>F</b><sub><i>p</i></sub>)
+    /// of a BLS24 curve <i>E</i>/<b>F</b><sub><i>p</i></sub>:
+    /// <i>Y&sup2;Z</i> = <i>X&sup3;</i> + <i>bZ&sup3;</i> with SHAKE-256.
     #[inline]
     pub fn shake256(data: &[u8]) -> Self {
         Self::point_factory(BNFp::shake256(data))
@@ -108,7 +119,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint<BN, LIMBS> {
     /// <i>P &in; E/<b>F</b><sub>p</sub>: Y&sup2;Z = X&sup3; + bZ&sup3;</i>
     /// (i.e. double <i>t</i> times) via complete elliptic point doubling.
     #[inline]
-    pub(crate) fn double(&self, t: usize) -> Self {
+    pub fn double(&self, t: usize) -> Self {
         let mut d = self.clone();
         d.double_self(t);
         d
@@ -224,7 +235,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint<BN, LIMBS> {
     #[inline]
     pub fn to_bytes(&self) -> Vec<u8> {
         let N = self.normalize();
-        /// ANSI X9.62 'compressed' prefix: 0x02 | lsb(N.y)
+        // ANSI X9.62 'compressed' prefix: 0x02 | lsb(N.y)
         let mut cp = 0x2u8;  // lsb(N.y) == 0
         cp.conditional_assign(&0x3u8, N.y.is_odd());  // lsb(N.y) == 1
         let mut bytes = Vec::new();

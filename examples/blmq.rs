@@ -92,8 +92,16 @@ impl<BN: BNParam, const LIMBS: usize> BLMQ<BN, LIMBS> {
         let Ppub = pk.2;
         let Qpub = pk.3;
         let g = pk.4;
-        BNPairing::opt(&Qpub, &P).ct_eq(&BNPairing::opt(&Q, &Ppub))
-            & BNPairing::opt(&Q, &P).ct_eq(&g) & !g.is_zero() & !g.is_one()
+        //*
+        BNPairing::opt(&Q, &Ppub).ct_eq(&BNPairing::opt(&Qpub, &P)) &
+        BNPairing::opt(&Q, &P).ct_eq(&g) & !g.is_zero() & !g.is_one()
+        // */
+        /*
+        // since Q is common to two of the pairings, it may be advantageous to resort to precomputation:
+        let Q_triples = BNPairing::precomp(&Q);
+        BNPairing::eval(&Q_triples, &Ppub).ct_eq(&BNPairing::opt(&Qpub, &P)) &
+        BNPairing::eval(&Q_triples, &P).ct_eq(&g) & !g.is_zero() & !g.is_one()
+        // */
     }
 
     /// A sample hash function <i>H&#x2081;</i> ∶ {0,1}&ast; &rarr; &Zopf;<i>&#x2099;</i>&ast;.
@@ -188,12 +196,18 @@ impl<BN: BNParam, const LIMBS: usize> BLMQ<BN, LIMBS> {
         let Q = pk.1;
         let Ppub = pk.2;
         let g = pk.4;
-        // since T_ID is common to two of the pairings, it is advantageous to resort to precomputation:
-        let T_ID_triples = BNPairing::precomp(&T_ID);
         // check that e([H_1(ID)]P + P_pub, T_ID) = g (i.e. T_ID corresponds to ID)
         // and e(P, T_ID) = e(S_ID, Q) (i.e. S_ID and T_ID correspond to each other):
+        //*
+        BNPairing::opt(&T_ID, &(BLMQ::H1(&ID)*P + Ppub)).ct_eq(&g) &
+        BNPairing::opt(&T_ID, &P).ct_eq(&BNPairing::opt(&Q, S_ID))
+        // */
+        /*
+        // since T_ID is common to two of the pairings, it may be advantageous to resort to precomputation:
+        let T_ID_triples = BNPairing::precomp(&T_ID);
         BNPairing::eval(&T_ID_triples, &(BLMQ::H1(&ID)*P + Ppub)).ct_eq(&g) &
         BNPairing::eval(&T_ID_triples, &P).ct_eq(&BNPairing::opt(&Q, S_ID))
+        // */
     }
 
     /// Given a signing key <i>S<sub>ID</sub></i>,

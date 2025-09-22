@@ -11,9 +11,8 @@ use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-/// The <b>F</b><sub><i>p&#x2074;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>w</i>&rbrack;/&lt;<i>w&sup2; - &xi;</i>&gt;
-/// extension field, with <i>&xi;</i> = <i>1 + i</i>.
-/// NB: <i>w&sup2;</i> = <i>&xi;</i>.
+/// The <b>F</b><sub><i>p&#x2074;</i></sub> &simeq; <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>w</i>&rbrack;/&lt;<i>w&sup2;</i> - <i>&xi;</i>&gt;
+/// extension field, with <i>&xi;</i> = 1 + <i>i</i>.  NB: <i>w&sup2;</i> = <i>&xi;</i>.
 pub struct BNFp4<BN: BNParam, const LIMBS: usize> {
     pub(crate) re: BNFp2<BN, LIMBS>,
     pub(crate) im: BNFp2<BN, LIMBS>,
@@ -37,7 +36,7 @@ pub type BN766Fp4 = BNFp4<BN766Param, 12>;
 
 
 impl<BN: BNParam, const LIMBS: usize> BNFp4<BN, LIMBS> {
-    /// Map an <b>F</b><sub><i>p&sup2;</i></sub> element to its <b>F</b><sub><i>p&#x2074;</i></sub> counterpart.
+    /// Convert an <b>F</b><sub><i>p&sup2;</i></sub> element to its <b>F</b><sub><i>p&#x2074;</i></sub> counterpart.
     #[inline]
     pub(crate) fn from_base(re: BNFp2<BN, LIMBS>) -> Self {
         Self {

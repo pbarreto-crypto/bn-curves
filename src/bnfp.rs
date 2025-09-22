@@ -13,6 +13,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+/// The <b>F</b><sub><i>p</i></sub> &simeq; <b>&Zopf;</b>/<i>p</i><b>&Zopf;</b> finite field.
 pub struct BNFp<BN: BNParam, const LIMBS: usize>(
     #[doc(hidden)]
     pub Uint<LIMBS>,
@@ -41,14 +42,14 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
     /// Montgomery reduction of <i>t</i> = (<i>t_lo</i>, <i>t_hi</i>) in range 0..&lt;<i>p&times;2&#x02B7;</i>,
     /// where <i>p &lt; 2&#x02B7;</i> is the BN modulus and <i>w</i> &#x2254; <i>64&times;LIMBS</i>.
     ///
-    /// Return <i>s</i> = <i>t&times;2&#8315;&#x02B7;</i> in range 0..&lt;<i>p</i>.
+    /// Return <i>t&times;2&#8315;&#x02B7;</i> in range 0..&lt;<i>p</i>.
     #[inline]
     fn redc(t_lo: Uint<LIMBS>, t_hi: Uint<LIMBS>) -> Uint<LIMBS> {
         let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());  // p < 2^w
         let q: Uint<LIMBS> = Uint::from_words(BN::NEG_INV_MOD.try_into().unwrap());  // q := -1/p mod 2^w
-        // m ← ((t mod r)*q) mod r = (t_lo*q) mod r:
+        // m ← ((t mod s)*q) mod s = (t_lo*q) mod s:
         let (m, _) = t_lo.widening_mul(&q);
-        // t ← (t + m*p) / r:
+        // t ← (t + m*p) / s:
         let (mp_lo, mp_hi) = m.widening_mul(&p);
         let (_, carry) = t_lo.carrying_add(&mp_lo, Limb::ZERO);
         let (t, _) = t_hi.carrying_add(&mp_hi, carry);
@@ -56,42 +57,42 @@ impl<BN: BNParam, const LIMBS: usize> BNFp<BN, LIMBS> {
         t - Uint::conditional_select(&p, &Uint::ZERO, t.ct_lt(&p))
     }
 
-    /// Convert an unsigned integer (Uint) value <i>w</i> to Montgomery form.
-    ///
-    /// NB: the Montgomery form of <i>w</i> is <i>w&middot;r</i> mod <i>p</i> =
-    /// redc((<i>w</i> mod <i>p</i>)&middot;(<i>r&sup2;</i> mod <i>p</i>)), where <i>r > p</i> is a power of 2.
+    /// Convert an unsigned integer (Uint) value <i>w</i> to Montgomery form,
+    /// namely, the value <i>w&middot;s</i> mod <i>p</i> =
+    /// redc((<i>w</i> mod <i>p</i>)&middot;(<i>s&sup2;</i> mod <i>p</i>)),
+    /// where <i>s > p</i> is a power of 2.
     #[inline]
     pub fn from_uint(w: Uint<LIMBS>) -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
-        let (lo, hi) = w.widening_mul(&r2);
+        let s2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
+        let (lo, hi) = w.widening_mul(&s2);
         Self {
             0: Self::redc(lo, hi),
             1: Default::default(),
         }
     }
 
-    /// Convert a word-sized integer <i>w</i> to Montgomery form.
-    ///
-    /// NB: the Montgomery form of <i>w</i> is <i>w&middot;r</i> mod <i>p</i> =
-    /// redc((<i>w</i> mod <i>p</i>)&middot;(<i>r&sup2;</i> mod <i>p</i>)), where <i>r > p</i> is a power of 2.
+    /// Convert a word-sized integer <i>w</i> to Montgomery form,
+    /// namely, the value <i>w&middot;s</i> mod <i>p</i> =
+    /// redc((<i>w</i> mod <i>p</i>)&middot;(<i>s&sup2;</i> mod <i>p</i>)),
+    /// where <i>s > p</i> is a power of 2.
     #[inline]
     pub fn from_word(w: Word) -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
-        let (lo, hi) = Uint::from_word(w).widening_mul(&r2);
+        let s2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
+        let (lo, hi) = Uint::from_word(w).widening_mul(&s2);
         Self {
             0: Self::redc(lo, hi),
             1: Default::default(),
         }
     }
 
-    /// Convert an integer <i>w</i> represented by s sequence of words to Montgomery form.
-    ///
-    /// NB: the Montgomery form of <i>w</i> is <i>w&middot;r</i> mod <i>p</i> =
-    /// redc((<i>w</i> mod <i>p</i>)&middot;(<i>r&sup2;</i> mod <i>p</i>)), where <i>r > p</i> is a power of 2.
+    /// Convert an integer <i>w</i> represented by a sequence of words to Montgomery form,
+    /// namely, the value <i>w&middot;s</i> mod <i>p</i> =
+    /// redc((<i>w</i> mod <i>p</i>)&middot;(<i>s&sup2;</i> mod <i>p</i>)),
+    /// where <i>s > p</i> is a power of 2.
     #[inline]
     pub(crate) fn from_words(v: [Word; LIMBS]) -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
-        let (lo, hi) = Uint::from_words(v).widening_mul(&r2);
+        let s2: Uint<LIMBS> = Uint::from_words(BN::MONTY_P.try_into().unwrap());
+        let (lo, hi) = Uint::from_words(v).widening_mul(&s2);
         Self {
             0: Self::redc(lo, hi),
             1: Default::default(),
@@ -305,8 +306,9 @@ impl<BN: BNParam, const LIMBS: usize> Add for BNFp<BN, LIMBS> {
     #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
+        let nzp: NonZero<Uint<LIMBS>> = NonZero::new(p).unwrap();
         Self::Output {
-            0: self.0.add_mod(&rhs.0, &p),
+            0: self.0.add_mod(&rhs.0, &nzp),
             1: Default::default(),
         }
     }
@@ -316,7 +318,8 @@ impl<BN: BNParam, const LIMBS: usize> AddAssign for BNFp<BN, LIMBS> {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
         let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
-        self.0 = self.0.add_mod(&rhs.0, &p);
+        let nzp: NonZero<Uint<LIMBS>> = NonZero::new(p).unwrap();
+        self.0 = self.0.add_mod(&rhs.0, &nzp);
     }
 }
 
@@ -346,8 +349,9 @@ impl<BN: BNParam, const LIMBS: usize> BNField for BNFp<BN, LIMBS> {
     #[inline]
     fn double(&self) -> Self {
         let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
+        let nzp: NonZero<Uint<LIMBS>> = NonZero::new(p).unwrap();
         Self {
-            0: self.0.add_mod(&self.0, &p),
+            0: self.0.add_mod(&self.0, &nzp),
             1: Default::default(),
         }
     }
@@ -532,8 +536,9 @@ impl<BN: BNParam, const LIMBS: usize> Neg for BNFp<BN, LIMBS> {
     #[inline]
     fn neg(self) -> Self::Output {
         let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
+        let nzp: NonZero<Uint<LIMBS>> = NonZero::new(p).unwrap();
         Self::Output {
-            0: self.0.neg_mod(&p),
+            0: self.0.neg_mod(&nzp),
             1: Default::default(),
         }
     }
@@ -618,8 +623,9 @@ impl<BN: BNParam, const LIMBS: usize> Sub for BNFp<BN, LIMBS> {
     #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
+        let nzp: NonZero<Uint<LIMBS>> = NonZero::new(p).unwrap();
         Self::Output {
-            0: self.0.sub_mod(&rhs.0, &p),
+            0: self.0.sub_mod(&rhs.0, &nzp),
             1: Default::default(),
         }
     }
@@ -629,7 +635,8 @@ impl<BN: BNParam, const LIMBS: usize> SubAssign for BNFp<BN, LIMBS> {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
         let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());
-        self.0 = self.0.sub_mod(&rhs.0, &p);
+        let nzp: NonZero<Uint<LIMBS>> = NonZero::new(p).unwrap();
+        self.0 = self.0.sub_mod(&rhs.0, &nzp);
     }
 }
 
@@ -695,9 +702,9 @@ mod tests {
 
             let e1: BNFp<BN, LIMBS> = BNFp::random(&mut rng);
             //println!("e1     = {}", e1);
-            //println!("e1 + 0 = {}", e1 + BNFp::ZERO);
+            //println!("e1 + 0 = {}", e1 + BNFp::zero());
             assert_eq!(e1 + BNFp::zero(), e1);
-            //println!("e1*1   = {}", e1*BNFp::ONE);
+            //println!("e1*1   = {}", e1*BNFp::one());
             assert_eq!(e1*BNFp::one(), e1);
 
             // addition vs subtraction:

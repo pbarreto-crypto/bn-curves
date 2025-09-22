@@ -14,7 +14,7 @@
 //! where <i>&xi;</i> = <i>1 + i</i>.
 //!
 //! The BN curve equation is <i>E</i>/<b>F</b><sub><i>p</i></sub> : <i>Y&sup2;Z</i> = <i>X&sup3; + bZ&sup3;</i>,
-//! whose number of points is
+//! whose number of points over <b>F</b><sub><i>p</i></sub> is
 //! <i>n</i> &#x2254; <i>#E</i>(<b>F</b><sub><i>p</i></sub>) = <i>36u&#x2074; + 36u&sup3; + 18u&sup2; + 6u + 1</i>,
 //! which is usually required (with a careful choice of the curve parameter <i>u</i>) to be prime.
 //! The underlying finite field and the number of points are thus related as
@@ -24,7 +24,7 @@
 //!
 //! The default quadratic twist of the curve is <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
 //! with <i>b'</i> &#x2254; <i>b/&xi;</i>, whose number of points is <i>n'</i> &#x2254; <i>#E'</i>(<b>F</b><sub><i>p&sup2;</i></sub>) = <i>h'n</i>
-//! where <i>h'</i> &#x2254; <i>p - 1 + t</i> is called the cofactor of the curve twist.
+//! where <i>h'</i> &#x2254; <i>p - 1 + t</i> is called the cofactor of the <i>n</i>-torsion on the curve twist.
 //!
 //! All supported curves were selected so that the BN curve parameter is a negative number
 //! (so that field inversion can be replaced by conjugation at the final exponentiation of a pairing)

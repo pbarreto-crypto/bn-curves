@@ -1,7 +1,6 @@
 #[cfg(not(any(target_pointer_width = "64")))]
 compile_error!("this crate requires 64-bit limbs");
 
-use crate::bnfp::BNFp;
 use crate::bnfp2::BNFp2;
 use crate::bnfp12::BNFp12;
 use crate::bnparam::BNParam;
@@ -20,7 +19,7 @@ pub struct BNPairing<BN: BNParam, const LIMBS: usize>(
 
 /*
 // the Litany of All Saints:
-pub type BN62Pairing = BNPairing<BN62Param, 1>;
+pub type BN062Pairing = BNPairing<BN062Param, 1>;
 pub type BN126Pairing = BNPairing<BN126Param, 2>;
 pub type BN190Pairing = BNPairing<BN190Param, 3>;
 pub type BN254Pairing = BNPairing<BN254Param, 4>;
@@ -36,29 +35,30 @@ pub type BN766Pairing = BNPairing<BN766Param, 12>;
 
 impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
 
-    /// The Tate pairing for BN curves: <i>a<sub>n</sub>(P, Q) = f<sub>n,P</sub>(Q)<sup>(p&#x1D4F;-1)/n</sup></i>
+    /// The Tate pairing for BN curves: <i>a<sub>n</sub></i>(<i>P</i>,&thinsp;<i>Q</i>) =
+    /// <i>f</i><sub><i>n</i>,<i>P</i></sub></i>(<i>Q</i>)<sup>(<i>p&#x1D4F;</i>&thinsp;-&thinsp;1)/<i>n</i></sup>
     ///
     /// References:
     ///
-    /// *; Victor Miller:
+    /// * Victor Miller:
     /// "The Weil Pairing, and Its Efficient Calculation."
     /// Journal of Cryptology, vol. 17, pp. 235--261 (2004).
     /// https://doi.org/10.1007/s00145-004-0315-8
     ///
-    /// *; Paulo S. L. M. Barreto, Hae Y. Kim, Ben Lynn, Mike Scott:
+    /// * Paulo S. L. M. Barreto, Hae Y. Kim, Ben Lynn, Mike Scott:
     /// "Efficient Algorithms for Pairing-Based Cryptosystems."
-    /// In: Yung, M. (eds) Advances in Cryptology — CRYPTO 2002. CRYPTO 2002.
+    /// In: Yung, M. (eds) Advances in Cryptology -- CRYPTO 2002.
     /// Lecture Notes in Computer Science, vol. 2442, pp. 354–369. Springer, 2002.
     /// https://doi.org/10.1007/3-540-45708-9_23
     ///
-    /// *; Craig Costello, Tanja Lange, Michael Naehrig:
+    /// * Craig Costello, Tanja Lange, Michael Naehrig:
     /// "Faster Pairing Computations on Curves with High-Degree Twists."
     /// In: Nguyen, P. Q., Pointcheval, D. (eds), Public Key Cryptography -- PKC 2010.
     /// Lecture Notes in Computer Science, vol. 6056, pp. 224--242. Springer, 2010.
     /// https://doi.org/10.1007/978-3-642-13013-7_14
     ///
-    /// *; Mike Scott, Naomi Benger, Manuel Charlemagne, Luís J. Domínguez-Pérez, Ezekiel J. Kachisa:
-    ///"On the Final Exponentiation for Calculating Pairings on Ordinary Elliptic Curves."
+    /// * Mike Scott, Naomi Benger, Manuel Charlemagne, Luís J. Domínguez-Pérez, Ezekiel J. Kachisa:
+    /// "On the Final Exponentiation for Calculating Pairings on Ordinary Elliptic Curves."
     /// In: Shacham, H., Waters, B. (eds), Pairing-Based Cryptography -- Pairing 2009.
     /// Lecture Notes in Computer Science, vol. 5671, pp. 78--88. Springer, 2009.
     /// https://doi.org/10.1007/978-3-642-03298-1_6
@@ -141,7 +141,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
     ///
     /// Reference:
     ///
-    /// *; Hess, F., Smart, N., Vercauteren, F.:
+    /// * Hess, F., Smart, N., Vercauteren, F.:
     /// "The Eta pairing revisited." IACR Cryptology ePrint Archive,
     /// Report 2006/110, (2006) http://eprint.iacr.org/2006/110
     #[allow(non_snake_case)]
@@ -217,11 +217,11 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
                 // g_{ADD,U+Q}(P) = (Y1*Z2 - Z1*Y2)*(X2 - xP) - (X1*Z2 - Z1*X2)*Y2 + (X1*Z2 - Z1*X2)*yP
                 // = A*yP - B*xP*z + (B*X2' - A*Y2')*z^3
                 // = yP*L_01 + xP*L_10*z + L_00*z^3
-                let A = X1* QN.z - Z1* QN.x;
-                let B = Y1* QN.z - Z1* QN.y;
+                let A = X1*QN.z - Z1*QN.x;
+                let B = Y1*QN.z - Z1*QN.y;
                 let L_10 = -B;
                 let L_01 = A;
-                let L_00 = B* QN.x - A* QN.y;
+                let L_00 = B*QN.x - A*QN.y;
                 f = f.mul_013(PN.y*L_01, PN.x*L_10, L_00);  // accumulate line into running pairing value
 
                 if j > 0 {
@@ -229,9 +229,9 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
                     let mut C = A.sq();
                     X1 *= C;
                     C *= A;
-                    let D = B.sq() * Z1 + C - 2 * X1;
-                    Y1 = B * (X1 - D) - Y1 * C;
-                    X1 = A * D;
+                    let D = B.sq()*Z1 + C - 2*X1;
+                    Y1 = B*(X1 - D) - Y1*C;
+                    X1 = A*D;
                     Z1 *= C;
                 }
             }
@@ -265,7 +265,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
     /// https://doi.org/10.1007/978-3-642-13013-7_14
     ///
     /// * Mike Scott, Naomi Benger, Manuel Charlemagne, Luís J. Domínguez-Pérez, Ezekiel J. Kachisa:
-    ///"On the Final Exponentiation for Calculating Pairings on Ordinary Elliptic Curves."
+    /// "On the Final Exponentiation for Calculating Pairings on Ordinary Elliptic Curves."
     /// In: Shacham, H., Waters, B. (eds), Pairing-Based Cryptography -- Pairing 2009.
     /// Lecture Notes in Computer Science, vol. 5671, pp. 78--88. Springer, 2009.
     /// https://doi.org/10.1007/978-3-642-03298-1_6
@@ -425,9 +425,9 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
     /// &nbsp;&nbsp;&nbsp;&nbsp;let g_m = BNPairing::eval(&P_m, &triples);  // e(P_m, Q)<br>
     #[allow(non_snake_case)]
     #[inline]
-    pub fn precomp(Q: &BNPoint2<BN, LIMBS>) -> Vec<BNFp2<BN, LIMBS>> {
-        let mut Q_triples = Vec::<BNFp2<BN, LIMBS>>::with_capacity(3*BN::TRIPLES as usize);
-        let QN = Q.normalize();
+    pub fn precomp(Qt: &BNPoint2<BN, LIMBS>) -> Vec<BNFp2<BN, LIMBS>> {
+        let mut Qt_triples = Vec::<BNFp2<BN, LIMBS>>::with_capacity(3*BN::TRIPLES as usize);
+        let QN = Qt.normalize();
         let omega: Uint<LIMBS> = Uint::from_words(BN::OMEGA.try_into().unwrap());
         let omega_bits = (16*LIMBS + 1) as u32;  // bit length of optimal pairing order |6*u + 2|
 
@@ -455,9 +455,9 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
             let L_01 = -F;  // -2*Y1'*Z1'
             let L_00 = D - B;  // 3b*Z1'^2 - Y1'^2
             //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
-            Q_triples.push(L_00);
-            Q_triples.push(L_10);
-            Q_triples.push(L_01);
+            Qt_triples.push(L_00);
+            Qt_triples.push(L_10);
+            Qt_triples.push(L_01);
 
             if bool::from(omega.bit(j)) {
                 // Costello-Lange-Naehrig add-and-line formula:
@@ -471,9 +471,9 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
                 let L_01 = A;
                 let L_00 = B* QN.x - A* QN.y;
                 //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
-                Q_triples.push(L_00);
-                Q_triples.push(L_10);
-                Q_triples.push(L_01);
+                Qt_triples.push(L_00);
+                Qt_triples.push(L_10);
+                Qt_triples.push(L_01);
                 if j > 0 {
                     // add points U = U + Q (skip this when the pairing calculation is complete):
                     let mut C = A.sq();
@@ -509,9 +509,9 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
         let L_10 = -B;
         let L_01 = A;
         let L_00 = B*Q3.x - A*Q3.y;
-        Q_triples.push(L_00);
-        Q_triples.push(L_10);
-        Q_triples.push(L_01);
+        Qt_triples.push(L_00);
+        Qt_triples.push(L_10);
+        Qt_triples.push(L_01);
         // add points U = -Q2 + Q3:
         let mut C = A.sq();
         X1 *= C;
@@ -529,31 +529,31 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
         let L_10 = -B;
         let L_01 = A;
         let L_00 = B*Q1.x - A*Q1.y;
-        Q_triples.push(L_00);
-        Q_triples.push(L_10);
-        Q_triples.push(L_01);
+        Qt_triples.push(L_00);
+        Qt_triples.push(L_10);
+        Qt_triples.push(L_01);
 
         // NB: the third line involved in the optimal pairing calculation intersects
         // the point at infinity and hence only contributes a value in a proper subfield,
         // which is promptly erased by the final exponentiation and can thus be omitted.
-        assert_eq!(Q_triples.len(), 3*BN::TRIPLES as usize);
-        Q_triples
+        assert_eq!(Qt_triples.len(), 3*BN::TRIPLES as usize);
+        Qt_triples
     }
 
     /// Evaluates an optimal pairing in expedited fashion, from a point `P` &in; <b>G</b><i>&#x2081;</i>
-    /// and a list of precomputed `triples` of <b>F</b><sub><i>p&sup2;</i></sub> elements previously
-    /// computed with BNPairing::precomp(.) from a common point <i>Q</i> &in; <b>G</b><i>&#x2082;</i>.
+    /// and a list of precomputed `Qt_triples` of <b>F</b><sub><i>p&sup2;</i></sub> elements previously
+    /// computed with BNPairing::precomp(.) from a common point <i>Qt</i> &in; <b>G</b><i>&#x2082;</i>.
     ///
     /// Example:
     ///
-    /// &nbsp;&nbsp;&nbsp;&nbsp;let Q_triples = BNPairing::precomp(&Q);<br>
-    /// &nbsp;&nbsp;&nbsp;&nbsp;let g_1 = BNPairing::eval(&Q_triples, &P_1);  // = e_opt(Q, P_1)<br>
+    /// &nbsp;&nbsp;&nbsp;&nbsp;let Qt_triples = BNPairing::precomp(&Qt);<br>
+    /// &nbsp;&nbsp;&nbsp;&nbsp;let g_1 = BNPairing::eval(&Qt_triples, &P_1);  // <i>g&#x2081;</i> = <i>e</i>&#x2092;&#x209A;&#x209C;(<i>Qt</i>, <i>P&#x2081;</i>)<br>
     /// &nbsp;&nbsp;&nbsp;&nbsp;// ...<br>
-    /// &nbsp;&nbsp;&nbsp;&nbsp;let g_m = BNPairing::eval(&Q_triples, &P_m);  // = e_opt(Q, P_m)<br>
+    /// &nbsp;&nbsp;&nbsp;&nbsp;let g_m = BNPairing::eval(&Qt_triples, &P_m);  // <i>g&#x2098;</i> = <i>e</i>&#x2092;&#x209A;&#x209C;(<i>Qt</i>, <i>P&#x2098;</i>)<br>
     #[allow(non_snake_case)]
     #[inline]
-    pub fn eval(Q_triples: &Vec<BNFp2<BN, LIMBS>>, P: &BNPoint<BN, LIMBS>) -> BNFp12<BN, LIMBS> {
-        assert_eq!(Q_triples.len(), 3*BN::TRIPLES as usize);
+    pub fn eval(Qt_triples: &Vec<BNFp2<BN, LIMBS>>, P: &BNPoint<BN, LIMBS>) -> BNFp12<BN, LIMBS> {
+        assert_eq!(Qt_triples.len(), 3*BN::TRIPLES as usize);
         let PN = P.normalize();
         let mut f: BNFp12<BN, LIMBS> = BNFp12::one();
         let omega: Uint<LIMBS> = Uint::from_words(BN::OMEGA.try_into().unwrap());
@@ -561,16 +561,16 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
         //let mut triple = [BNFp2::zero(); 3*BN::TRIPLES];  // (L_00, L_10, L_01)
         let mut pre = 0;  // individual precomputed value
         for j in (0..omega_bits-1).rev() {
-            let L_00 = Q_triples[pre]; pre += 1;
-            let L_10 = Q_triples[pre]; pre += 1;
-            let L_01 = Q_triples[pre]; pre += 1;
+            let L_00 = Qt_triples[pre]; pre += 1;
+            let L_10 = Qt_triples[pre]; pre += 1;
+            let L_01 = Qt_triples[pre]; pre += 1;
             //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
             f = f.sq().mul_013(PN.y*L_01, PN.x*L_10, L_00);  // accumulate line into running pairing value
             //println!("f = {}", f);
             if bool::from(omega.bit(j)) {
-                let L_00 = Q_triples[pre]; pre += 1;
-                let L_10 = Q_triples[pre]; pre += 1;
-                let L_01 = Q_triples[pre]; pre += 1;
+                let L_00 = Qt_triples[pre]; pre += 1;
+                let L_10 = Qt_triples[pre]; pre += 1;
+                let L_01 = Qt_triples[pre]; pre += 1;
                 //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
                 f = f.mul_013(PN.y*L_01, PN.x*L_10, L_00);  // accumulate line into running pairing value
                 //println!("f = {}", f);
@@ -578,15 +578,15 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
         }
         f = f.conj2(3);  // Aranha's trick: replace inversion by conjugation to get f = f_{6u+2,Q}.
         //println!("f = {}", f);
-        let L_00 = Q_triples[pre]; pre += 1;
-        let L_10 = Q_triples[pre]; pre += 1;
-        let L_01 = Q_triples[pre]; pre += 1;
+        let L_00 = Qt_triples[pre]; pre += 1;
+        let L_10 = Qt_triples[pre]; pre += 1;
+        let L_01 = Qt_triples[pre]; pre += 1;
         //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
         f = f.mul_013(PN.y*L_01, PN.x*L_10, L_00);  // accumulate line into running pairing value
         //println!("f = {}", f);
-        let L_00 = Q_triples[pre]; pre += 1;
-        let L_10 = Q_triples[pre]; pre += 1;
-        let L_01 = Q_triples[pre]; pre += 1;
+        let L_00 = Qt_triples[pre]; pre += 1;
+        let L_10 = Qt_triples[pre]; pre += 1;
+        let L_01 = Qt_triples[pre]; pre += 1;
         //println!("L_00 = {}, L_10 = {}, L_01 = {}", L_00, L_10, L_01);
         f = f.mul_013(PN.y*L_01, PN.x*L_10, L_00);  // accumulate line into running pairing value
         //println!("f = {}", f);
@@ -600,12 +600,13 @@ impl<BN: BNParam, const LIMBS: usize> BNPairing<BN, LIMBS> {
 
 #[cfg(test)]
 mod tests {
+    use crate::bnfp::BNFp;
     use crate::bnparam::{BN062Param, BN126Param, BN190Param, BN254Param, BN318Param, BN382Param, BN446Param, BN510Param, BN574Param, BN638Param, BN702Param, BN766Param};
     use crypto_bigint::Random;
     use std::time::SystemTime;
     use super::*;
 
-    const TESTS: usize = 1;
+    const TESTS: usize = 100;
 
     /// General BNPairing test template.
     #[allow(non_snake_case)]

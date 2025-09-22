@@ -13,6 +13,8 @@ use rand::Rng;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+/// The group <b>G&#x2082;</b> &#x2254; <i>E'</i>&lbrack;<i>n</i>&rbrack;(<b>F</b><sub><i>p&sup2;</i></sub>)
+/// of <b>F</b><sub><i>p&sup2;</i></sub>&thinsp;-rational <i>n</i>-torsion points on the curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub>.
 pub struct BNPoint2<BN: BNParam, const LIMBS: usize> {
     pub(crate) x: BNFp2<BN, LIMBS>,
     pub(crate) y: BNFp2<BN, LIMBS>,
@@ -39,7 +41,7 @@ pub type BN766Point2 = BNPoint2<BN766Param, 12>;
 impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
 
     /// Create a normalized point on a BN curve twist
-    /// <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
+    /// <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>
     /// from a given affine <i>X'</i>-coordinate and the least significant bit (LSB) of the <i>Y'</i>-coordinate.
     ///
     /// NB: specify y_lsb as Choice::FALSE if LSB==0 and as Choice::TRUE if LSB==1.
@@ -54,7 +56,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     }
 
     /// Determine if given projective coordinates <i>X'</i>, <i>Y'</i>, and <i>Z'</i>
-    /// specify a point on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>.
+    /// specify a point on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>.
     #[inline]
     pub fn is_point(x: BNFp2<BN, LIMBS>, y: BNFp2<BN, LIMBS>, z: BNFp2<BN, LIMBS>) -> Choice {
         // projective curve equation: Y'^2*Z' = X'^3 + b'*Z'^3 where b' = b/xi
@@ -62,7 +64,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     }
 
     /// Create a normalized point on a BN curve twist
-    /// <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
+    /// <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>
     /// from given affine coordinates <i>X'</i> and <i>Y'</i>.
     #[inline]
     fn from_affine(x: BNFp2<BN, LIMBS>, y: BNFp2<BN, LIMBS>) -> Self {
@@ -70,7 +72,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
         Self { x, y, z: BNFp2::one() }
     }
 
-    /// Create a point on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
+    /// Create a point on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>
     /// from given projective coordinates <i>X'</i>, <i>Y'</i>, and <i>Z'</i>.
     #[inline]
     pub(crate) fn from_proj(x: BNFp2<BN, LIMBS>, y: BNFp2<BN, LIMBS>, z: BNFp2<BN, LIMBS>) -> Self {
@@ -79,23 +81,31 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     }
 
     /// Create an instance of the default generator of <i>n</i>-torsion <i>G&#x2082; &#x2254; (-i, 1)</i>
-    /// on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>.
+    /// on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>.
     #[inline]
     pub fn default_generator() -> Self {
         Self::new(-BNFp2::i(), Choice::from(1)).elim_cof()
     }
 
     /// Hash input data into a point on the (quadratic extension field) <i>n</i>-torsion group
-    /// <b>G</b><i>&#x2082;</i> &#x2254; <i>E'</i>&lbrack;<i>n</i>&rbrack;(<b>F</b><sub><i>p&sup2;</i></sub>)
-    /// of a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
-    /// with SHAKE-256.
+    /// <i><b>G</b>&#x2082;</i> &#x2254; <i>E'</i>&lbrack;<i>n</i>&rbrack;(<b>F</b><sub><i>p&sup2;</i></sub>)
+    /// of a BN curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> :
+    /// <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i> with SHAKE-128.
+    #[inline]
+    pub fn shake128(data: &[u8]) -> Self {
+        Self::point_factory(BNFp2::shake128(data)).elim_cof()
+    }
+
+    /// Hash input data into a point on the (quadratic extension field) <i>n</i>-torsion group
+    /// <i><b>G</b>&#x2082;</i> &#x2254; <i>E'</i>&lbrack;<i>n</i>&rbrack;(<b>F</b><sub><i>p&sup2;</i></sub>)
+    /// of a BN curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i> with SHAKE-256.
     #[inline]
     pub fn shake256(data: &[u8]) -> Self {
         Self::point_factory(BNFp2::shake256(data)).elim_cof()
     }
 
     /// Compute a normalized (i.e. affine) point equivalent to this
-    /// on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>.
+    /// on a BN curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>.
     #[inline]
     pub(crate) fn normalize(&self) -> Self {
         let ch = self.z.is_zero();
@@ -108,17 +118,17 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     }
 
     /// Compute &lbrack;<i>2&#x1D57;</i>&rbrack;<i>Q'</i> for a BN curve twist point
-    /// <i>Q'</i> &in; <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
+    /// <i>Q'</i> &in; <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>
     /// (i.e. double <i>t</i> times) via complete elliptic point doubling.
     #[inline]
-    pub(crate) fn double(&self, t: usize) -> Self {
+    pub fn double(&self, t: usize) -> Self {
         let mut d = self.clone();
         d.double_self(t);
         d
     }
 
     /// Compute &lbrack;<i>2&#x1D57;</i>&rbrack;<i>Q'</i> for a BN curve twist point
-    /// <i>Q'</i> &in; <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>
+    /// <i>Q'</i> &in; <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>
     /// (i.e. double <i>t</i> times) via complete elliptic point doubling.
     ///
     /// Reference:
@@ -230,7 +240,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     }
 
     /// Compute the <i>k</i>-th Frobenius endomorphism on the BN curve twist
-    /// <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>,
+    /// <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>,
     /// namely the map <i>&psi;&#x1D4F;</i> : <i>E'</i> &#8594; <i>E'</i> defined as
     /// the composition <i>&psi;&#x1D4F;</i> &#x2254; <i>&phi;&#x207B;&sup1;</i>&nbsp;o&nbsp;<i>&pi;&#x1D4F;</i>&nbsp;o&nbsp;<i>&phi;</i>,
     /// where <i>&phi;</i> : <i>E'</i> &#8594; <i>E</i> is the embedding
@@ -304,34 +314,18 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
         }
     }
 
-    /// Compute <i>&lbrack;u&rbrack;Q</i>.
+    /// Compute &lbrack;<i>u</i>&rbrack;<i>`self`</i>.
     #[inline]
     fn mul_u(&self) -> Self {
-        // prepare a table such that tab[d] = d*Q, where 0 <= d < 16:
-        let mut tab = [Self::zero(); 16];
-        tab[1] = self.clone();
-        for d in 1..8 {
-            let mut v = tab[d].clone();
-            v.double_self(1);  // (2*d)*P = 2*(d*P)
-            tab[2*d] = v.clone();
-            v += self.clone();  // (2*d + 1)*P = 2*(d*P) + P
-            tab[2*d + 1] = v.clone();
-        }
-
-        // perform fixed-window multiplication by scalar, one hex digit at a time:
+        // since the coefficient u is public and fixed, the simple double-and-add method suffices:
         let u: Uint<LIMBS> = Uint::from_words(BN::U.try_into().unwrap());
-        let s = u.as_words();
-        assert_eq!(((u.bits() + 3) >> 2) as usize, 4*LIMBS);  // number of nybbles in |u|
-        let mut v = Self::zero();  // accumulator
-        for k in (0..LIMBS << 2).rev() {  // scan the scalar from most to least significant nybble
-            v.double_self(4);  // multiply the accumulator by 16
-            let d = ((s[k >> 4] >> ((k & 0xF) << 2)) & 0xF) as usize;  // hex digit at index k
-            // perform constant-time sequential search on t to extract t[d]:
-            let mut w = Self::zero();
-            for k in 0..16 {  // pt[] contains 16 serialized points...
-                w = Self::conditional_select(&w, &tab[k], k.ct_eq(&d)); // ... (of which only the d-th is to be kept)
+        let mut v = self.clone();
+        let ubits = u.bits();
+        for k in (0..ubits-1).rev() {
+            v.double_self(1);
+            if bool::from(u.bit(k)) {
+                v += *self;
             }
-            v += w;  // accumulate pt[d] into v
         }
         -v  // NB: constant U is actually |u| = -u.
     }
@@ -374,7 +368,7 @@ impl<BN: BNParam, const LIMBS: usize> BNPoint2<BN, LIMBS> {
     #[inline]
     pub fn to_bytes(&self) -> Vec<u8> {
         let N = self.normalize();
-        /// ANSI X9.62 'compressed' prefix: 0x02 | lsb(N.y)
+        // ANSI X9.62 'compressed' prefix: 0x02 | lsb(N.y)
         let mut cp = 0x2u8;  // lsb(N.y) == 0
         cp.conditional_assign(&0x3u8, N.y.is_odd());  // lsb(N.y) == 1
         let mut bytes = Vec::new();
@@ -612,13 +606,13 @@ impl<BN: BNParam, const LIMBS: usize> PartialEq<Self> for BNPoint2<BN, LIMBS> {
 
 impl<BN: BNParam, const LIMBS: usize> Random for BNPoint2<BN, LIMBS> {
     /// Pick a uniform point from the <i>n</i>-torsion of the BN curve twist
-    /// <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>.
+    /// <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>.
     fn random<R: Rng + ?Sized>(rng: &mut R) -> Self {
         Self::point_factory(BNFp2::random(rng)).elim_cof()
     }
 
     /// Try to pick a uniform point from the <i>n</i>-torsion of the BN curve twist
-    /// <i>E'</i>/<b>F</b><sub><i>p</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>.
+    /// <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>.
     fn try_random<R: TryRngCore + ?Sized>(rng: &mut R) -> Result<Self, <R as TryRngCore>::Error> where R: TryRngCore {
         match BNFp2::try_random(rng) {
             Ok(val) => Ok(Self::point_factory(val).elim_cof()),
@@ -670,7 +664,7 @@ mod tests {
     use std::time::SystemTime;
     use super::*;
 
-    const TESTS: usize = 10;
+    const TESTS: usize = 100;
 
     /// General BNPoint test template.
     #[allow(non_snake_case)]

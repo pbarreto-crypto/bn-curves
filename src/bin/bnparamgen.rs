@@ -1,7 +1,7 @@
 //! An executable tool to prepare the bnparams.rs file needed by the bn-curves crate.
 
 use std::ops::Div;
-use crypto_bigint::{Integer, NonZero, Uint, Zero};
+use crypto_bigint::{Integer, NonZero, Uint};
 use crypto_bigint::subtle::ConditionallySelectable;
 
 const LIMBS: usize = 16;  // maximum supported size (1024 bits)
@@ -93,7 +93,7 @@ fn bn() {
     println!("//! where <i>&xi;</i> = <i>1 + i</i>.");
     println!("//!");
     println!("//! The BN curve equation is <i>E</i>/<b>F</b><sub><i>p</i></sub> : <i>Y&sup2;Z</i> = <i>X&sup3; + bZ&sup3;</i>,");
-    println!("//! whose number of points is");
+    println!("//! whose number of points over <b>F</b><sub><i>p</i> is");
     println!("//! <i>n</i> &#x2254; <i>#E</i>(<b>F</b><sub><i>p</i></sub>) = <i>36u&#x2074; + 36u&sup3; + 18u&sup2; + 6u + 1</i>,");
     println!("//! which is usually required (with a careful choice of the curve parameter <i>u</i>) to be prime.");
     println!("//! The underlying finite field and the number of points are thus related as");
@@ -103,7 +103,7 @@ fn bn() {
     println!("//!");
     println!("//! The default quadratic twist of the curve is <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3; + b'Z'&sup3;</i>");
     println!("//! with <i>b'</i> &#x2254; <i>b/&xi;</i>, whose number of points is <i>n'</i> &#x2254; <i>#E'</i>(<b>F</b><sub><i>p&sup2;</i></sub>) = <i>h'n</i>");
-    println!("//! where <i>h'</i> &#x2254; <i>p - 1 + t</i> is called the cofactor of the curve twist.");
+    println!("//! where <i>h'</i> &#x2254; <i>p - 1 + t</i> is called the cofactor of the <i>n</i>-torsion on the curve twist.");
     println!("//!");
     println!("//! All supported curves were selected so that the BN curve parameter is a negative number");
     println!("//! (so that field inversion can be replaced by conjugation at the final exponentiation of a pairing)");
@@ -202,7 +202,7 @@ fn bn() {
          * of conjugate computation across all supported curves, namely,
          * the one such that
          * v^(p^2) = v_0 + (zeta + 1)*v_1*z + zeta*v_2*z^2 - v_3*z^3 - (zeta + 1)*v_4*z^4 - zeta*v_5*z^5
-         * for any v in the extension field F_{p^12} = F_{p^2}[z]/<z^6 + (1 + i).
+         * for any v in the extension field F_{p^12} = F_{p^2}[z]/<z^6 + (1 + i)>.
          */
         // zeta = -(18*u^3 - 18*u^2 + 9*u - 1)
         // -(zeta + 1) = 18*u^3 - 18*u^2 + 9*u - 2
@@ -214,7 +214,7 @@ fn bn() {
         let theta: Uint<LIMBS> = pow_mod_p(p - n4, (p - n1) - ((p + n5).div(n24)), p); // (-1/4)^((p+5)/24)
         let theta_w = theta.to_words();
 
-        let sqrt_m3: Uint<LIMBS> = sqrt(Uint::from_word(3).neg_mod(&p), p);  // sqrt(-3) mod p
+        let sqrt_m3: Uint<LIMBS> = sqrt(Uint::from_word(3).neg_mod(&nzp), p);  // sqrt(-3) mod p
         let sqrt_m3_w = sqrt_m3.to_words();
         let svdw: Uint<LIMBS> = Uint::conditional_select(&(sqrt_m3 - n1), &(sqrt_m3 - n1 + p),
                                                          (sqrt_m3 - n1).is_odd()) >> 1;  // (-1 + sqrt(-3))/2
@@ -239,7 +239,7 @@ fn bn() {
             print!(" 0x{:016X},", u_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(u_w[i].is_zero()));
+            assert_eq!(u_w[i], 0);
         }
         println!();
         println!("        // u = -{}", u.to_string_radix_vartime(10));
@@ -252,7 +252,7 @@ fn bn() {
             print!(" 0x{:X},", p_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(p_w[i].is_zero()));
+            assert_eq!(p_w[i], 0);
         }
         println!();
         println!("        // p = {}: {} bits", p.to_string_radix_vartime(10), p.bits());
@@ -264,7 +264,7 @@ fn bn() {
             print!(" 0x{:X},", neg_inv_p_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(neg_inv_p_w[i].is_zero()));
+            assert_eq!(neg_inv_p_w[i], 0);
         }
         println!();
         println!("    ];");
@@ -275,7 +275,7 @@ fn bn() {
             print!(" 0x{:X},", monty_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(monty_w[i].is_zero()));
+            assert_eq!(monty_w[i], 0);
         }
         println!();
         println!("    ];");
@@ -286,7 +286,7 @@ fn bn() {
             print!(" 0x{:X},", n_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(n_w[i].is_zero()));
+            assert_eq!(n_w[i], 0);
         }
         println!();
         println!("        // n = {}: {} bits", n.to_string_radix_vartime(10), n.bits());
@@ -298,7 +298,7 @@ fn bn() {
             print!(" 0x{:X},", neg_inv_n_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(neg_inv_n_w[i].is_zero()));
+            assert_eq!(neg_inv_n_w[i], 0);
         }
         println!();
         println!("    ];");
@@ -309,7 +309,7 @@ fn bn() {
             print!(" 0x{:X},", monty_n_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(monty_n_w[i].is_zero()));
+            assert_eq!(monty_n_w[i], 0);
         }
         println!();
         println!("    ];");
@@ -320,7 +320,7 @@ fn bn() {
             print!(" 0x{:X},", sqrt_m3_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(sqrt_m3_w[i].is_zero()));
+            assert_eq!(sqrt_m3_w[i], 0);
         }
         println!();
         println!("    ];");
@@ -331,7 +331,7 @@ fn bn() {
             print!(" 0x{:X},", svdw_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(svdw_w[i].is_zero()));
+            assert_eq!(svdw_w[i], 0);
         }
         println!();
         println!("    ];");
@@ -358,7 +358,7 @@ fn bn() {
             print!(" 0x{:016X},", zeta_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(zeta_w[i].is_zero()));
+            assert_eq!(zeta_w[i], 0);
         }
         println!();
         println!("        // ζ = {} mod p", zeta.to_string_radix_vartime(10));
@@ -372,7 +372,7 @@ fn bn() {
             print!(" 0x{:016X},", theta_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(theta_w[i].is_zero()));
+            assert_eq!(theta_w[i], 0);
         }
         println!();
         println!("        // θ = {} mod p", theta.to_string_radix_vartime(10));
@@ -386,7 +386,7 @@ fn bn() {
             print!(" 0x{:016X},", omega_w[i]);
         }
         for i in limbs..LIMBS {
-            assert!(bool::from(omega_w[i].is_zero()));
+            assert_eq!(omega_w[i], 0);
         }
         println!();
         println!("        // ω = |6u + 2| = {}", omega.to_string_radix_vartime(10));

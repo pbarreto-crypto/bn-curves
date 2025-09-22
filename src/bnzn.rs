@@ -3,7 +3,7 @@ compile_error!("this crate requires 64-bit limbs");
 
 use crate::bnparam::BNParam;
 use crate::traits::{BNField, One};
-use crypto_bigint::{Integer, Limb, Random, Uint, Word, Zero};
+use crypto_bigint::{Integer, Limb, NonZero, Random, Uint, Word, Zero};
 use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeLess};
 use rand::Rng;
@@ -13,6 +13,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+/// The <b>F</b><sub><i>n</i></sub> &simeq; <b>&Zopf;</b>/<i>n</i><b>&Zopf;</b> finite field.
 pub struct BNZn<BN: BNParam, const LIMBS: usize>(
     #[doc(hidden)]
     pub Uint<LIMBS>,
@@ -40,16 +41,16 @@ pub type BN766Zn = BNZn<BN766Param, 12>;
 impl<BN: BNParam, const LIMBS: usize> BNZn<BN, LIMBS> {
 
     /// Montgomery reduction of <i>t</i> = (<i>t_lo</i>, <i>t_hi</i>) in range 0..&lt;<i>n&times;2&#x02B7;</i>,
-    /// where <i>n &lt; 2&#x02B7;</i> is the BN order and <i>w</i> &#x2254; <i>64&times;LIMBS</i>.
+    /// where <i>n &lt; 2&#x02B7;</i> is the BN group order and <i>w</i> &#x2254; <i>64&times;LIMBS</i>.
     ///
-    /// Return <i>s</i> = <i>t&times;2&#8315;&#x02B7;</i> in range 0..&lt;<i>n</i>.
+    /// Return <i>t&times;2&#8315;&#x02B7;</i> in range 0..&lt;<i>n</i>.
     #[inline]
     fn redc(t_lo: Uint<LIMBS>, t_hi: Uint<LIMBS>) -> Uint<LIMBS> {
         let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());  // n < 2^w
         let q: Uint<LIMBS> = Uint::from_words(BN::NEG_INV_ORD.try_into().unwrap());  // q := -1/n mod 2^w
-        // m ← ((t mod r)*q) mod r = (t_lo*q) mod r:
+        // m ← ((t mod s)*q) mod s = (t_lo*q) mod s:
         let (m, _) = t_lo.widening_mul(&q);
-        // t ← (t + m*n) / r:
+        // t ← (t + m*n) / s:
         let (mp_lo, mp_hi) = m.widening_mul(&n);
         let (_, carry) = t_lo.carrying_add(&mp_lo, Limb::ZERO);
         let (t, _) = t_hi.carrying_add(&mp_hi, carry);
@@ -57,42 +58,42 @@ impl<BN: BNParam, const LIMBS: usize> BNZn<BN, LIMBS> {
         t - Uint::conditional_select(&n, &Uint::ZERO, t.ct_lt(&n))
     }
 
-    /// Convert an unsigned integer (Uint) value <i>w</i> to Montgomery form.
-    ///
-    /// NB: the Montgomery form of <i>w</i> is <i>w&middot;r</i> mod <i>n</i> =
-    /// redc((<i>w</i> mod <i>n</i>)&middot;(<i>r&sup2;</i> mod <i>n</i>)), where <i>r > n</i> is a power of 2.
+    /// Convert an unsigned integer (Uint) value <i>w</i> to Montgomery form,
+    /// namely, the value <i>w&middot;s</i> mod <i>n</i> =
+    /// redc((<i>w</i> mod <i>n</i>)&middot;(<i>s&sup2;</i> mod <i>n</i>)),
+    /// where <i>s > n</i> is a power of 2.
     #[inline]
     pub fn from_uint(w: Uint<LIMBS>) -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_N.try_into().unwrap());
-        let (lo, hi) = w.widening_mul(&r2);
+        let s2: Uint<LIMBS> = Uint::from_words(BN::MONTY_N.try_into().unwrap());
+        let (lo, hi) = w.widening_mul(&s2);
         Self {
             0: Self::redc(lo, hi),
             1: Default::default(),
         }
     }
 
-    /// Convert a word-sized integer <i>w</i> to Montgomery form.
-    ///
-    /// NB: the Montgomery form of <i>w</i> is <i>w&middot;r</i> mod <i>n</i> =
-    /// redc((<i>w</i> mod <i>n</i>)&middot;(<i>r&sup2;</i> mod <i>n</i>)), where <i>r > n</i> is a power of 2.
+    /// Convert a word-sized integer <i>w</i> to Montgomery form,
+    /// namely, the value <i>w&middot;s</i> mod <i>n</i> =
+    /// redc((<i>w</i> mod <i>n</i>)&middot;(<i>s&sup2;</i> mod <i>n</i>)),
+    /// where <i>s > n</i> is a power of 2.
     #[inline]
     pub fn from_word(w: Word) -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_N.try_into().unwrap());
-        let (lo, hi) = Uint::from_word(w).widening_mul(&r2);
+        let s2: Uint<LIMBS> = Uint::from_words(BN::MONTY_N.try_into().unwrap());
+        let (lo, hi) = Uint::from_word(w).widening_mul(&s2);
         Self {
             0: Self::redc(lo, hi),
             1: Default::default(),
         }
     }
 
-    /// Convert an integer <i>w</i> represented by s sequence of words to Montgomery form.
-    ///
-    /// NB: the Montgomery form of <i>w</i> is <i>w&middot;r</i> mod <i>n</i> =
-    /// redc((<i>w</i> mod <i>n</i>)&middot;(<i>r&sup2;</i> mod <i>n</i>)), where <i>r > n</i> is a power of 2.
+    /// Convert an integer <i>w</i> represented by s sequence of words to Montgomery form,
+    /// namely, the value <i>w&middot;s</i> mod <i>n</i> =
+    /// redc((<i>w</i> mod <i>n</i>)&middot;(<i>s&sup2;</i> mod <i>n</i>)),
+    /// where <i>s > n</i> is a power of 2.
     #[inline]
     pub fn from_words(v: [Word; LIMBS]) -> Self {
-        let r2: Uint<LIMBS> = Uint::from_words(BN::MONTY_N.try_into().unwrap());
-        let (lo, hi) = Uint::from_words(v).widening_mul(&r2);
+        let s2: Uint<LIMBS> = Uint::from_words(BN::MONTY_N.try_into().unwrap());
+        let (lo, hi) = Uint::from_words(v).widening_mul(&s2);
         Self {
             0: Self::redc(lo, hi),
             1: Default::default(),
@@ -212,8 +213,9 @@ impl<BN: BNParam, const LIMBS: usize> Add for BNZn<BN, LIMBS> {
     #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
+        let nzn: NonZero<Uint<LIMBS>> = NonZero::new(n).unwrap();
         Self::Output {
-            0: self.0.add_mod(&rhs.0, &n),
+            0: self.0.add_mod(&rhs.0, &nzn),
             1: Default::default(),
         }
     }
@@ -223,7 +225,8 @@ impl<BN: BNParam, const LIMBS: usize> AddAssign for BNZn<BN, LIMBS> {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
         let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
-        self.0 = self.0.add_mod(&rhs.0, &n);
+        let nzn: NonZero<Uint<LIMBS>> = NonZero::new(n).unwrap();
+        self.0 = self.0.add_mod(&rhs.0, &nzn);
     }
 }
 
@@ -253,8 +256,9 @@ impl<BN: BNParam, const LIMBS: usize> BNField for BNZn<BN, LIMBS> {
     #[inline]
     fn double(&self) -> Self {
         let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
+        let nzn: NonZero<Uint<LIMBS>> = NonZero::new(n).unwrap();
         Self {
-            0: self.0.add_mod(&self.0, &n),
+            0: self.0.add_mod(&self.0, &nzn),
             1: Default::default(),
         }
     }
@@ -528,8 +532,9 @@ impl<BN: BNParam, const LIMBS: usize> Sub for BNZn<BN, LIMBS> {
     #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
+        let nzn: NonZero<Uint<LIMBS>> = NonZero::new(n).unwrap();
         Self::Output {
-            0: self.0.sub_mod(&rhs.0, &n),
+            0: self.0.sub_mod(&rhs.0, &nzn),
             1: Default::default(),
         }
     }
@@ -539,7 +544,8 @@ impl<BN: BNParam, const LIMBS: usize> SubAssign for BNZn<BN, LIMBS> {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
         let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
-        self.0 = self.0.sub_mod(&rhs.0, &n);
+        let nzn: NonZero<Uint<LIMBS>> = NonZero::new(n).unwrap();
+        self.0 = self.0.sub_mod(&rhs.0, &nzn);
     }
 }
 
@@ -689,84 +695,84 @@ mod tests {
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN062Fp_test() {
+    fn BN062Zn_test() {
         const LIMBS: usize = BN062Param::LIMBS;
         BNZn_test::<BN062Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN126Fp_test() {
+    fn BN126Zn_test() {
         const LIMBS: usize = BN126Param::LIMBS;
         BNZn_test::<BN126Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN190Fp_test() {
+    fn BN190Zn_test() {
         const LIMBS: usize = BN190Param::LIMBS;
         BNZn_test::<BN190Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN254Fp_test() {
+    fn BN254Zn_test() {
         const LIMBS: usize = BN254Param::LIMBS;
         BNZn_test::<BN254Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN318Fp_test() {
+    fn BN318Zn_test() {
         const LIMBS: usize = BN318Param::LIMBS;
         BNZn_test::<BN318Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN382Fp_test() {
+    fn BN382Zn_test() {
         const LIMBS: usize = BN382Param::LIMBS;
         BNZn_test::<BN382Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN446Fp_test() {
+    fn BN446Zn_test() {
         const LIMBS: usize = BN446Param::LIMBS;
         BNZn_test::<BN446Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN510Fp_test() {
+    fn BN510Zn_test() {
         const LIMBS: usize = BN510Param::LIMBS;
         BNZn_test::<BN510Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN574Fp_test() {
+    fn BN574Zn_test() {
         const LIMBS: usize = BN574Param::LIMBS;
         BNZn_test::<BN574Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN638Fp_test() {
+    fn BN638Zn_test() {
         const LIMBS: usize = BN638Param::LIMBS;
         BNZn_test::<BN638Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN702Fp_test() {
+    fn BN702Zn_test() {
         const LIMBS: usize = BN702Param::LIMBS;
         BNZn_test::<BN702Param, LIMBS>();
     }
 
     #[test]
     #[allow(non_snake_case)]
-    fn BN766Fp_test() {
+    fn BN766Zn_test() {
         const LIMBS: usize = BN766Param::LIMBS;
         BNZn_test::<BN766Param, LIMBS>();
     }

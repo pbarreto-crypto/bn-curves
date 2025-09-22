@@ -10,6 +10,8 @@ use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+/// The <b>F</b><sub><i>p&sup2;</i></sub> &simeq; <b>F</b><sub><i>p</i></sub>&lbrack;<i>i</i>&rbrack;/&lt;<i>i&sup2;</i> + 1&gt;
+/// extension field.  NB: <i>i&sup2;</i> = -1.
 pub struct BNFp2<BN: BNParam, const LIMBS: usize> {
     pub(crate) re: BNFp<BN, LIMBS>,
     pub(crate) im: BNFp<BN, LIMBS>,
@@ -33,7 +35,7 @@ pub type BN766Fp2 = BNFp2<BN766Param, 12>;
 
 
 impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
-    /// Map an <b>F</b><sub><i>p</i></sub> element to its <b>F</b><sub><i>p&sup2;</i></sub> counterpart.
+    /// Convert an <b>F</b><sub><i>p</i></sub> element to its <b>F</b><sub><i>p&sup2;</i></sub> counterpart.
     #[inline]
     pub(crate) fn from_base(re: BNFp<BN, LIMBS>) -> Self {
         Self {
@@ -42,10 +44,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
         }
     }
 
-    /// Convert a word-sized integer <i>w</i> to Montgomery form.
-    ///
-    /// NB: the Montgomery form of <i>w</i> is <i>w&middot;r mod p =
-    /// redc((w mod p)&middot;(r&sup2; mod p))</i>, where <i>r > p</i> is a power of 2.
+    /// Convert a word-sized integer <i>w</i> to its <b>F</b><sub><i>p&sup2;</i></sub> counterpart.
     #[inline]
     pub fn from_word(w: Word) -> Self {
         Self {
@@ -158,9 +157,12 @@ impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
         }
     }
 
-    /// Compute the square root of this element <i>u + vi &in; <b>F</b><sub>p&sup2;</sub></i>,
-    /// with a "real" part with a specified least-significant bit (lsb), if such a root exists
-    /// (otherwise return zero).
+    /// Compute the square root of this element <i>u + vi &in; <b>F</b><sub>p&sup2;</sub></i> if such a root exists.
+    /// If a root does exist with a nonzero "real" part,
+    /// pick the root where that part has the specified least-significant bit (`lsb`).
+    /// If a root does exist with a zero "real" part but a nonzero "imaginary" part,
+    /// pick the root where this part has the specified least-significant bit (`lsb`).
+    /// If `self` is zero or if a root does not exist, return zero.
     ///
     /// Reference:
     ///
@@ -173,18 +175,19 @@ impl<BN: BNParam, const LIMBS: usize> BNFp2<BN, LIMBS> {
         let n = self.norm();  // n = (u^2 + v^2) mod p
         let m = n.sqrt();
         let ex = m.sq().ct_eq(&n);  // root existence flag
-        let z = (self.re + m).half();  // (u + m)/2 mod p
+        let z: BNFp<BN, LIMBS> = BNFp::conditional_select(&(self.re + m).half(), &self.re, self.im.is_zero());  // (u + m)/2 mod p, or just u when v = 0
         let t = z.inv_sqrt();  // 1/sqrt(z) = z^((p + 1)/4 - 1) mod p
         let r = z*t;  // sqrt(z) = z*t mod p
         let s = self.im*t.half(); // v*t/2 mod p = ±v*(r*t)*t/2 mod p (NB: r*t is just a ± sign)
         let ch = r.sq().ct_eq(&z);  // sign flip and swap flag
-        assert_eq!(bool::from((r*t).is_one()), bool::from(ch));  // r*t == 1 <=> ch = true
+        assert!(bool::from((r*t).is_one().ct_eq(&ch) | self.im.is_zero()));  // r*t == 1 <=> ch = true, except if self in Fp
         let mut mu = BNFp::conditional_select(&s, &r, ch);
         let mut nu = BNFp::conditional_select(&(-r), &s, ch);
-        let parity = mu.is_odd() ^ lsb;
+        let mu0 = mu.is_zero();
+        let parity = (!mu0 & (mu.is_odd() ^ lsb)) | (mu0 & !nu.is_zero() & (nu.is_odd() ^ lsb));
         mu = BNFp::conditional_select(&mu, &(-mu), parity);
         nu = BNFp::conditional_select(&nu, &(-nu), parity);
-        assert!(bool::from(!ex | !(mu.is_odd() ^ lsb)));
+        assert!(bool::from(!ex | !((!mu0 & (mu.is_odd() ^ lsb)) | (mu0 & !nu.is_zero() & (nu.is_odd() ^ lsb)))));
         BNFp2::conditional_select(&BNFp2::zero(), &BNFp2::from(mu, nu), ex)
     }
 
@@ -604,6 +607,11 @@ mod tests {
                 //println!("no sqrt");
                 assert!(e2.legendre() < 0);
             }
+            let e1: BNFp2<BN, LIMBS> = BNFp2::from_base(BNFp::random(&mut rng));
+            let sr = e1.sqrt(BNFp::<BN, LIMBS>::random(&mut rng).is_odd());
+            assert!(e1.legendre() >= 0);
+            assert!(bool::from(!sr.is_zero() | e1.is_zero()));  // square root of Fp value always exists in Fp2
+            assert_eq!(sr.sq(), e1);
 
             // subgroup multiplication (Word*BNFp2, Uint*BNFp2, and BNFp*BNFp2):
             let p: Uint<LIMBS> = Uint::from_words(BN::MODULUS.try_into().unwrap());

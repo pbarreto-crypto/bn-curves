@@ -4,7 +4,6 @@ compile_error!("this crate requires 64-bit limbs");
 use crate::bnfp::BNFp;
 use crate::bnfp2::BNFp2;
 use crate::bnfp4::BNFp4;
-use crate::bnfp6::BNFp6;
 use crate::bnparam::BNParam;
 use crate::traits::{BNField, One};
 use crypto_bigint::{Random, Uint, Word, Zero};
@@ -13,9 +12,8 @@ use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-/// The <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> = <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>z</i>&rbrack;/&lt;<i>z&#x2076; - &xi;</i>&gt;
-/// extension field, with <i>&xi;</i> = <i>1 + i</i>.
-/// NB: <i>z&#x2076;</i> = <i>&xi;</i>.
+/// The <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> &simeq; <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>z</i>&rbrack;/&lt;<i>z&#x2076;</i> - <i>&xi;</i>&gt;
+/// extension field, with <i>&xi;</i> = 1 + <i>i</i>.  NB: <i>z&#x2076;</i> = <i>&xi;</i>.
 pub struct BNFp12<BN: BNParam, const LIMBS: usize> {
     pub(crate) v0: BNFp2<BN, LIMBS>,
     pub(crate) v1: BNFp2<BN, LIMBS>,
@@ -43,7 +41,7 @@ pub type BN766Fp12 = BNFp12<BN766Param, 12>;
 
 
 impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
-    /// Map an <b>F</b><sub><i>p&sup2;</i></sub> element to its <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> counterpart.
+    /// Convert an <b>F</b><sub><i>p&sup2;</i></sub> element to its <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> counterpart.
     #[inline]
     pub(crate) fn from_base(v0: BNFp2<BN, LIMBS>) -> Self {
         Self {
@@ -264,7 +262,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         // easy part of final exponentiation: m := m^((p^2 + 1)*(p^6 - 1))
         m = m.conj2(3)*m.inv();  // m = m^(p^6 - 1)
         m = m.conj2(1)*m;  // m = m^(p^2 + 1)
-        assert_eq!(m.inv(), m.conj2(3));
+        //assert_eq!(m.inv(), m.conj2(3));
 
         // hard part of final exponentiation: m := m^((p^4 - p^2 + 1)/n)
         let mu = m.pow_u();  // m^u
@@ -307,7 +305,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     /// Multiply this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element by a sparse one
     /// of form <i>v&#8320; + v&#8321;z + v&#8323;z&sup3;</i>.
     #[inline]
-    pub(crate) fn mul_013(&mut self, rhs0: BNFp2<BN, LIMBS>, rhs1: BNFp2<BN, LIMBS>, rhs3: BNFp2<BN, LIMBS>) -> Self {
+    pub(crate) fn mul_013(&self, rhs0: BNFp2<BN, LIMBS>, rhs1: BNFp2<BN, LIMBS>, rhs3: BNFp2<BN, LIMBS>) -> Self {
         // Karatsuba multiplication:
 
         let d_00 = self.v0*rhs0;
@@ -342,7 +340,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     /// Multiply this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element by a sparse one
     /// of form <i>v&#8320; + v&#8322;z&sup2; + v&#8323;z&sup3;</i>.
     #[inline]
-    pub(crate) fn mul_023(&mut self, rhs0: BNFp2<BN, LIMBS>, rhs2: BNFp2<BN, LIMBS>, rhs3: BNFp2<BN, LIMBS>) -> Self {
+    pub(crate) fn mul_023(&self, rhs0: BNFp2<BN, LIMBS>, rhs2: BNFp2<BN, LIMBS>, rhs3: BNFp2<BN, LIMBS>) -> Self {
         // Karatsuba multiplication:
 
         let d_00 = self.v0*rhs0;
