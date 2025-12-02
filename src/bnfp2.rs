@@ -473,7 +473,7 @@ impl<BN: BNParam, const LIMBS: usize> Random for BNFp2<BN, LIMBS> {
     }
 
     /// Try to pick a uniform element from <b>F</b><sub><i>p&sup2;</i></sub> by rejection sampling.
-    fn try_random<R: TryRngCore + ?Sized>(rng: &mut R) -> Result<Self, <R as TryRngCore>::Error> where R: TryRngCore {
+    fn try_random<R: TryRngCore + ?Sized>(rng: &mut R) -> Result<Self, R::Error> where R: TryRngCore {
         let try_re = match BNFp::try_random(rng) {
             Ok(val) => Ok(val),
             Err(e) => Err(e),

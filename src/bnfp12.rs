@@ -15,12 +15,12 @@ use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 /// The <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> &simeq; <b>F</b><sub><i>p&sup2;</i></sub>&lbrack;<i>z</i>&rbrack;/&lt;<i>z&#x2076;</i> - <i>&xi;</i>&gt;
 /// extension field, with <i>&xi;</i> = 1 + <i>i</i>.  NB: <i>z&#x2076;</i> = <i>&xi;</i>.
 pub struct BNFp12<BN: BNParam, const LIMBS: usize> {
-    pub(crate) v0: BNFp2<BN, LIMBS>,
-    pub(crate) v1: BNFp2<BN, LIMBS>,
-    pub(crate) v2: BNFp2<BN, LIMBS>,
-    pub(crate) v3: BNFp2<BN, LIMBS>,
-    pub(crate) v4: BNFp2<BN, LIMBS>,
-    pub(crate) v5: BNFp2<BN, LIMBS>,
+    pub(crate) a0: BNFp2<BN, LIMBS>,
+    pub(crate) a1: BNFp2<BN, LIMBS>,
+    pub(crate) a2: BNFp2<BN, LIMBS>,
+    pub(crate) a3: BNFp2<BN, LIMBS>,
+    pub(crate) a4: BNFp2<BN, LIMBS>,
+    pub(crate) a5: BNFp2<BN, LIMBS>,
 }
 
 /*
@@ -43,17 +43,22 @@ pub type BN766Fp12 = BNFp12<BN766Param, 12>;
 impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     /// Convert an <b>F</b><sub><i>p&sup2;</i></sub> element to its <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> counterpart.
     #[inline]
-    pub(crate) fn from_base(v0: BNFp2<BN, LIMBS>) -> Self {
+    pub(crate) fn from_base(a0: BNFp2<BN, LIMBS>) -> Self {
         Self {
-            v0, v1: BNFp2::zero(), v2: BNFp2::zero(), v3: BNFp2::zero(), v4: BNFp2::zero(), v5: BNFp2::zero()
+            a0,
+            a1: BNFp2::zero(),
+            a2: BNFp2::zero(),
+            a3: BNFp2::zero(),
+            a4: BNFp2::zero(),
+            a5: BNFp2::zero(),
         }
     }
 
     /// Assemble an <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element from its components.
     #[inline]
-    pub(crate) fn from(v: [BNFp2<BN, LIMBS>; 6]) -> Self {
+    pub(crate) fn from(a: [BNFp2<BN, LIMBS>; 6]) -> Self {
         Self {
-            v0: v[0], v1: v[1], v2: v[2], v3: v[3], v4: v[4], v5: v[5],
+            a0: a[0], a1: a[1], a2: a[2], a3: a[3], a4: a[4], a5: a[5],
         }
     }
 
@@ -64,12 +69,12 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         let zeta1 = -(zeta0 + BNFp::one());
         let theta = BNFp::from_words(BN::THETA.try_into().unwrap());
         Self {
-            v0: self.v0.conj(),
-            v1: -zeta1*theta*self.v1.mul_xi().conj(),
-            v2: zeta1*self.v2.conj().mul_i(),
-            v3: -zeta0*theta*self.v3.conj().mul_xi(),
-            v4: -zeta0*self.v4.conj(),
-            v5: theta*self.v5.mul_xi().conj(),
+            a0: self.a0.conj(),
+            a1: -zeta1*theta*self.a1.mul_xi().conj(),
+            a2: zeta1*self.a2.conj().mul_i(),
+            a3: -zeta0*theta*self.a3.conj().mul_xi(),
+            a4: -zeta0*self.a4.conj(),
+            a5: theta*self.a5.mul_xi().conj(),
         }
     }
 
@@ -97,36 +102,36 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         let zeta1 = -(zeta0 + BNFp::one());
         let v = match m {
             0 => [
-                self.v0, self.v1, self.v2,
-                self.v3, self.v4, self.v5,
+                self.a0, self.a1, self.a2,
+                self.a3, self.a4, self.a5,
             ],
             1 => [
-                self.v0, -zeta1*self.v1, zeta0*self.v2,
-                -self.v3, zeta1*self.v4, -zeta0*self.v5,
+                self.a0, -zeta1*self.a1, zeta0*self.a2,
+                -self.a3, zeta1*self.a4, -zeta0*self.a5,
             ],
             2 => [
-                self.v0, zeta0*self.v1, zeta1*self.v2,
-                self.v3, zeta0*self.v4, zeta1*self.v5,
+                self.a0, zeta0*self.a1, zeta1*self.a2,
+                self.a3, zeta0*self.a4, zeta1*self.a5,
             ],
             3 => [
-                 self.v0, -self.v1,  self.v2,
-                -self.v3,  self.v4, -self.v5,
+                 self.a0, -self.a1,  self.a2,
+                -self.a3,  self.a4, -self.a5,
             ],
             4 => [
-                self.v0, zeta1*self.v1, zeta0*self.v2,
-                self.v3, zeta1*self.v4, zeta0*self.v5,
+                self.a0, zeta1*self.a1, zeta0*self.a2,
+                self.a3, zeta1*self.a4, zeta0*self.a5,
             ],
             5 => [
-                self.v0, -zeta0*self.v1, zeta1*self.v2,
-                -self.v3, zeta0*self.v4, -zeta1*self.v5,
+                self.a0, -zeta0*self.a1, zeta1*self.a2,
+                -self.a3, zeta0*self.a4, -zeta1*self.a5,
             ],
             _ => [
-                self.v0, self.v1, self.v2,
-                self.v3, self.v4, self.v5,
+                self.a0, self.a1, self.a2,
+                self.a3, self.a4, self.a5,
             ]  // just to make the compiler happy
         };
         Self {
-            v0: v[0], v1: v[1], v2: v[2], v3: v[3], v4: v[4], v5: v[5],
+            a0: v[0], a1: v[1], a2: v[2], a3: v[3], a4: v[4], a5: v[5],
         }
     }
 
@@ -165,9 +170,9 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         // |w| = w*w.conj(2)*w.conj(4) =
         // w0*(w0^2 - w1*w2*tau) + w1*(w1^2 - w0*w2)*tau + w2*(w2^2*tau - w0*w1)*tau =
         // (w0^3 - w0*w1*w2*tau) + (w1^3 - w0*w1*w2)*tau + (w2^3*tau - w0*w1*w2)*tau
-        let w0 = BNFp4::from(self.v0, self.v3);
-        let w1 = BNFp4::from(self.v1, self.v4);
-        let w2 = BNFp4::from(self.v2, self.v5);
+        let w0 = BNFp4::from(self.a0, self.a3);
+        let w1 = BNFp4::from(self.a1, self.a4);
+        let w2 = BNFp4::from(self.a2, self.a5);
         let w012 = w0*w1*w2;
         (w0.cb() - w012.mul_tau()) +
         (w1.cb() - w012).mul_tau() +
@@ -177,7 +182,7 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     /// Compute the <b>F</b><sub><i>p&#x2074;</i></sub>-trace of this <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> element.
     #[inline]
     pub fn tr4(&self) -> BNFp4<BN, LIMBS> {
-        3*BNFp4::from(self.v0, self.v3)
+        3*BNFp4::from(self.a0, self.a3)
     }
 
     /// Compute <i>`self`&#x1D4F;</i> in <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
@@ -286,16 +291,16 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
         let y6 = mu3*mu3p;
 
         let mut t0 = y6.sq();
-        t0 = t0 *y4;
-        t0 = t0 *y5;
+        t0 = t0*y4;
+        t0 = t0*y5;
         let mut t1 = y3*y5;
         t1 = t1*t0;
-        t0 = t0 *y2;
+        t0 = t0*y2;
         t1 = t1.sq();
         t1 = t1*t0;
         t1 = t1.sq();
-        t0 = t1 *y1;
-        t1 = t1 *y0;
+        t0 = t1*y1;
+        t1 = t1*y0;
         t0 = t0.sq();
         t0 = t0*t1;
 
@@ -308,32 +313,32 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     pub(crate) fn mul_013(&self, rhs0: BNFp2<BN, LIMBS>, rhs1: BNFp2<BN, LIMBS>, rhs3: BNFp2<BN, LIMBS>) -> Self {
         // Karatsuba multiplication:
 
-        let d_00 = self.v0*rhs0;
-        let d_11 = self.v1*rhs1;
-        let d_33 = self.v3*rhs3;
+        let d_00 = self.a0 *rhs0;
+        let d_11 = self.a1 *rhs1;
+        let d_33 = self.a3 *rhs3;
 
-        let d_01 = (self.v0 + self.v1)*(rhs0 + rhs1) - d_00 - d_11;
-        let d_02 = (self.v0 + self.v2)*rhs0 - d_00;
-        let d_04 = (self.v0 + self.v4)*rhs0 - d_00;
-        let d_13 = (self.v1 + self.v3)*(rhs1 + rhs3) - d_11 - d_33;
-        let d_15 = (self.v1 + self.v5)*rhs1 - d_11;
-        let d_23 = (self.v2 + self.v3)*rhs3 - d_33;
-        let d_35 = (self.v3 + self.v5)*rhs3 - d_33;
+        let d_01 = (self.a0 + self.a1)*(rhs0 + rhs1) - d_00 - d_11;
+        let d_02 = (self.a0 + self.a2)*rhs0 - d_00;
+        let d_04 = (self.a0 + self.a4)*rhs0 - d_00;
+        let d_13 = (self.a1 + self.a3)*(rhs1 + rhs3) - d_11 - d_33;
+        let d_15 = (self.a1 + self.a5)*rhs1 - d_11;
+        let d_23 = (self.a2 + self.a3)*rhs3 - d_33;
+        let d_35 = (self.a3 + self.a5)*rhs3 - d_33;
 
-        let d_03 = (self.v0 + self.v1 + self.v2 + self.v3)*(rhs0 + rhs1 + rhs3)
+        let d_03 = (self.a0 + self.a1 + self.a2 + self.a3)*(rhs0 + rhs1 + rhs3)
             - (d_00 + d_11 + d_33 + d_01 + d_02 + d_13 + d_23);
-        let d_05 = (self.v0 + self.v1 + self.v4 + self.v5)*(rhs0 + rhs1)
+        let d_05 = (self.a0 + self.a1 + self.a4 + self.a5)*(rhs0 + rhs1)
             - (d_00 + d_11 + d_01 + d_04 + d_15);
-        let d_25 = (self.v2 + self.v3 + self.v4 + self.v5)*rhs3
+        let d_25 = (self.a2 + self.a3 + self.a4 + self.a5)*rhs3
             - (d_33 + d_23 + d_35);
 
         Self {
-            v0: (d_15 + d_33).mul_xi() + d_00,
-            v1: d_25.mul_xi() + d_01,
-            v2: d_35.mul_xi() + d_02 + d_11,
-            v3: d_03,
-            v4: d_04 + d_13,
-            v5: d_05 + d_23,
+            a0: (d_15 + d_33).mul_xi() + d_00,
+            a1: d_25.mul_xi() + d_01,
+            a2: d_35.mul_xi() + d_02 + d_11,
+            a3: d_03,
+            a4: d_04 + d_13,
+            a5: d_05 + d_23,
         }
     }
 
@@ -343,32 +348,32 @@ impl<BN: BNParam, const LIMBS: usize> BNFp12<BN, LIMBS> {
     pub(crate) fn mul_023(&self, rhs0: BNFp2<BN, LIMBS>, rhs2: BNFp2<BN, LIMBS>, rhs3: BNFp2<BN, LIMBS>) -> Self {
         // Karatsuba multiplication:
 
-        let d_00 = self.v0*rhs0;
-        let d_22 = self.v2*rhs2;
-        let d_33 = self.v3*rhs3;
+        let d_00 = self.a0 *rhs0;
+        let d_22 = self.a2 *rhs2;
+        let d_33 = self.a3 *rhs3;
 
-        let d_01 = (self.v0 + self.v1)*rhs0 - d_00;
-        let d_02 = (self.v0 + self.v2)*(rhs0 + rhs2) - d_00 - d_22;
-        let d_04 = (self.v0 + self.v4)*rhs0 - d_00;
-        let d_13 = (self.v1 + self.v3)*rhs3 - d_33;
-        let d_23 = (self.v2 + self.v3)*(rhs2 + rhs3) - d_22 - d_33;
-        let d_24 = (self.v2 + self.v4)*rhs2 - d_22;
-        let d_35 = (self.v3 + self.v5)*rhs3 - d_33;
+        let d_01 = (self.a0 + self.a1)*rhs0 - d_00;
+        let d_02 = (self.a0 + self.a2)*(rhs0 + rhs2) - d_00 - d_22;
+        let d_04 = (self.a0 + self.a4)*rhs0 - d_00;
+        let d_13 = (self.a1 + self.a3)*rhs3 - d_33;
+        let d_23 = (self.a2 + self.a3)*(rhs2 + rhs3) - d_22 - d_33;
+        let d_24 = (self.a2 + self.a4)*rhs2 - d_22;
+        let d_35 = (self.a3 + self.a5)*rhs3 - d_33;
 
-        let d_03 = (self.v0 + self.v1 + self.v2 + self.v3)*(rhs0 + rhs2 + rhs3)
+        let d_03 = (self.a0 + self.a1 + self.a2 + self.a3)*(rhs0 + rhs2 + rhs3)
             - (d_00 + d_22 + d_33 + d_01 + d_02 + d_13 + d_23);
-        let d_05 = (self.v0 + self.v1 + self.v4 + self.v5)*rhs0
+        let d_05 = (self.a0 + self.a1 + self.a4 + self.a5)*rhs0
             - (d_00 + d_01 + d_04);
-        let d_25 = (self.v2 + self.v3 + self.v4 + self.v5)*(rhs2 + rhs3)
+        let d_25 = (self.a2 + self.a3 + self.a4 + self.a5)*(rhs2 + rhs3)
             - (d_22 + d_33 + d_23 + d_24 + d_35);
 
         Self {
-            v0: (d_24 + d_33).mul_xi() + d_00,
-            v1: d_25.mul_xi() + d_01,
-            v2: d_35.mul_xi() + d_02,
-            v3: d_03,
-            v4: d_04 + d_13 + d_22,
-            v5: d_05 + d_23,
+            a0: (d_24 + d_33).mul_xi() + d_00,
+            a1: d_25.mul_xi() + d_01,
+            a2: d_35.mul_xi() + d_02,
+            a3: d_03,
+            a4: d_04 + d_13 + d_22,
+            a5: d_05 + d_23,
         }
     }
 }
@@ -385,12 +390,12 @@ impl<BN: BNParam, const LIMBS: usize> Add for BNFp12<BN, LIMBS> {
 
 impl<BN: BNParam, const LIMBS: usize> AddAssign for BNFp12<BN, LIMBS> {
     fn add_assign(&mut self, rhs: Self) {
-        self.v0 += rhs.v0;
-        self.v1 += rhs.v1;
-        self.v2 += rhs.v2;
-        self.v3 += rhs.v3;
-        self.v4 += rhs.v4;
-        self.v5 += rhs.v5;
+        self.a0 += rhs.a0;
+        self.a1 += rhs.a1;
+        self.a2 += rhs.a2;
+        self.a3 += rhs.a3;
+        self.a4 += rhs.a4;
+        self.a5 += rhs.a5;
     }
 }
 
@@ -398,12 +403,12 @@ impl<BN: BNParam, const LIMBS: usize> BNField for BNFp12<BN, LIMBS> {
     /// Convert `self` to byte array representation.
     #[inline]
     fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = self.v0.to_bytes();
-        let mut next = self.v1.to_bytes(); bytes.append(&mut next);
-        let mut next = self.v2.to_bytes(); bytes.append(&mut next);
-        let mut next = self.v3.to_bytes(); bytes.append(&mut next);
-        let mut next = self.v4.to_bytes(); bytes.append(&mut next);
-        let mut next = self.v5.to_bytes(); bytes.append(&mut next);
+        let mut bytes = self.a0.to_bytes();
+        let mut next = self.a1.to_bytes(); bytes.append(&mut next);
+        let mut next = self.a2.to_bytes(); bytes.append(&mut next);
+        let mut next = self.a3.to_bytes(); bytes.append(&mut next);
+        let mut next = self.a4.to_bytes(); bytes.append(&mut next);
+        let mut next = self.a5.to_bytes(); bytes.append(&mut next);
         bytes
     }
 
@@ -411,8 +416,8 @@ impl<BN: BNParam, const LIMBS: usize> BNField for BNFp12<BN, LIMBS> {
     #[inline]
     fn double(&self) -> Self {
         Self {
-            v0: self.v0.double(), v1: self.v1.double(), v2: self.v2.double(),
-            v3: self.v3.double(), v4: self.v4.double(), v5: self.v5.double(),
+            a0: self.a0.double(), a1: self.a1.double(), a2: self.a2.double(),
+            a3: self.a3.double(), a4: self.a4.double(), a5: self.a5.double(),
         }
     }
 
@@ -420,8 +425,8 @@ impl<BN: BNParam, const LIMBS: usize> BNField for BNFp12<BN, LIMBS> {
     #[inline]
     fn half(&self) -> Self {
         Self {
-            v0: self.v0.half(), v1: self.v1.half(), v2: self.v2.half(),
-            v3: self.v3.half(), v4: self.v4.half(), v5: self.v5.half(),
+            a0: self.a0.half(), a1: self.a1.half(), a2: self.a2.half(),
+            a3: self.a3.half(), a4: self.a4.half(), a5: self.a5.half(),
         }
     }
 
@@ -430,40 +435,40 @@ impl<BN: BNParam, const LIMBS: usize> BNField for BNFp12<BN, LIMBS> {
     fn sq(&self) -> Self {
         // Karatsuba multiplication:
 
-        let d_00 = self.v0.sq();
-        let d_11 = self.v1.sq();
-        let d_22 = self.v2.sq();
-        let d_33 = self.v3.sq();
-        let d_44 = self.v4.sq();
-        let d_55 = self.v5.sq();
+        let d_00 = self.a0.sq();
+        let d_11 = self.a1.sq();
+        let d_22 = self.a2.sq();
+        let d_33 = self.a3.sq();
+        let d_44 = self.a4.sq();
+        let d_55 = self.a5.sq();
 
-        let d_01 = (self.v0 + self.v1).sq() - d_00 - d_11;
-        let d_02 = (self.v0 + self.v2).sq() - d_00 - d_22;
-        let d_04 = (self.v0 + self.v4).sq() - d_00 - d_44;
-        let d_13 = (self.v1 + self.v3).sq() - d_11 - d_33;
-        let d_15 = (self.v1 + self.v5).sq() - d_11 - d_55;
-        let d_23 = (self.v2 + self.v3).sq() - d_22 - d_33;
-        let d_24 = (self.v2 + self.v4).sq() - d_22 - d_44;
-        let d_35 = (self.v3 + self.v5).sq() - d_33 - d_55;
-        let d_45 = (self.v4 + self.v5).sq() - d_44 - d_55;
+        let d_01 = (self.a0 + self.a1).sq() - d_00 - d_11;
+        let d_02 = (self.a0 + self.a2).sq() - d_00 - d_22;
+        let d_04 = (self.a0 + self.a4).sq() - d_00 - d_44;
+        let d_13 = (self.a1 + self.a3).sq() - d_11 - d_33;
+        let d_15 = (self.a1 + self.a5).sq() - d_11 - d_55;
+        let d_23 = (self.a2 + self.a3).sq() - d_22 - d_33;
+        let d_24 = (self.a2 + self.a4).sq() - d_22 - d_44;
+        let d_35 = (self.a3 + self.a5).sq() - d_33 - d_55;
+        let d_45 = (self.a4 + self.a5).sq() - d_44 - d_55;
 
         let s_01 = d_00 + d_11;
         let s_23 = d_22 + d_33;
         let s_45 = d_44 + d_55;
-        let d_03 = (self.v0 + self.v1 + self.v2 + self.v3).sq()
+        let d_03 = (self.a0 + self.a1 + self.a2 + self.a3).sq()
             - (s_01 + s_23 + d_01 + d_02 + d_13 + d_23);
-        let d_05 = (self.v0 + self.v1 + self.v4 + self.v5).sq()
+        let d_05 = (self.a0 + self.a1 + self.a4 + self.a5).sq()
             - (s_01 + s_45 + d_01 + d_04 + d_15 + d_45);
-        let d_25 = (self.v2 + self.v3 + self.v4 + self.v5).sq()
+        let d_25 = (self.a2 + self.a3 + self.a4 + self.a5).sq()
             - (s_23 + s_45 + d_23 + d_24 + d_35 + d_45);
 
         Self {
-            v0: (d_15 + d_24 + d_33).mul_xi() + d_00,
-            v1: d_25.mul_xi() + d_01,
-            v2: (d_35 + d_44).mul_xi() + d_02 + d_11,
-            v3: d_45.mul_xi() + d_03,
-            v4: d_55.mul_xi() + d_04 + d_13 + d_22,
-            v5: d_05 + d_23,
+            a0: (d_15 + d_24 + d_33).mul_xi() + d_00,
+            a1: d_25.mul_xi() + d_01,
+            a2: (d_35 + d_44).mul_xi() + d_02 + d_11,
+            a3: d_45.mul_xi() + d_03,
+            a4: d_55.mul_xi() + d_04 + d_13 + d_22,
+            a5: d_05 + d_23,
         }
     }
 
@@ -479,9 +484,9 @@ impl<BN: BNParam, const LIMBS: usize> BNField for BNFp12<BN, LIMBS> {
     fn inv(&self) -> Self {
         // w = w0 + w1*z + w2*z^2
         // split this Fp12 element into its Fp4 components:
-        let w0 = BNFp4::from(self.v0, self.v3);
-        let w1 = BNFp4::from(self.v1, self.v4);
-        let w2 = BNFp4::from(self.v2, self.v5);
+        let w0 = BNFp4::from(self.a0, self.a3);
+        let w1 = BNFp4::from(self.a1, self.a4);
+        let w2 = BNFp4::from(self.a2, self.a5);
 
         // w.conj(2)*w.conj(4) = (w0^2 - w1*w2*tau) + (w2^2*tau - w0*w1)*z + (w1^2 - w2*w0)*z^2
         // compute the components of the product of proper conjugates:
@@ -504,33 +509,33 @@ impl<BN: BNParam, const LIMBS: usize> BNField for BNFp12<BN, LIMBS> {
 impl<BN: BNParam, const LIMBS: usize> Clone for BNFp12<BN, LIMBS> {
     fn clone(&self) -> Self {
         Self {
-            v0: self.v0.clone(), v1: self.v1.clone(), v2: self.v2.clone(),
-            v3: self.v3.clone(), v4: self.v4.clone(), v5: self.v5.clone(),
+            a0: self.a0.clone(), a1: self.a1.clone(), a2: self.a2.clone(),
+            a3: self.a3.clone(), a4: self.a4.clone(), a5: self.a5.clone(),
         }
     }
 }
 
 impl<BN: BNParam, const LIMBS: usize> ConditionallySelectable for BNFp12<BN, LIMBS> {
     fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
-        let v0 = BNFp2::conditional_select(&a.v0, &b.v0, choice);
-        let v1 = BNFp2::conditional_select(&a.v1, &b.v1, choice);
-        let v2 = BNFp2::conditional_select(&a.v2, &b.v2, choice);
-        let v3 = BNFp2::conditional_select(&a.v3, &b.v3, choice);
-        let v4 = BNFp2::conditional_select(&a.v4, &b.v4, choice);
-        let v5 = BNFp2::conditional_select(&a.v5, &b.v5, choice);
-        Self { v0, v1, v2, v3, v4, v5 }
+        let v0 = BNFp2::conditional_select(&a.a0, &b.a0, choice);
+        let v1 = BNFp2::conditional_select(&a.a1, &b.a1, choice);
+        let v2 = BNFp2::conditional_select(&a.a2, &b.a2, choice);
+        let v3 = BNFp2::conditional_select(&a.a3, &b.a3, choice);
+        let v4 = BNFp2::conditional_select(&a.a4, &b.a4, choice);
+        let v5 = BNFp2::conditional_select(&a.a5, &b.a5, choice);
+        Self { a0: v0, a1: v1, a2: v2, a3: v3, a4: v4, a5: v5 }
     }
 }
 
 impl<BN: BNParam, const LIMBS: usize> ConstantTimeEq for BNFp12<BN, LIMBS> {
     fn ct_eq(&self, other: &Self) -> Choice {
-        self.v0.ct_eq(&other.v0) & self.v1.ct_eq(&other.v1) & self.v2.ct_eq(&other.v2) &
-        self.v3.ct_eq(&other.v3) & self.v4.ct_eq(&other.v4) & self.v5.ct_eq(&other.v5)
+        self.a0.ct_eq(&other.a0) & self.a1.ct_eq(&other.a1) & self.a2.ct_eq(&other.a2) &
+        self.a3.ct_eq(&other.a3) & self.a4.ct_eq(&other.a4) & self.a5.ct_eq(&other.a5)
     }
 
     fn ct_ne(&self, other: &Self) -> Choice {
-        self.v0.ct_ne(&other.v0) | self.v1.ct_ne(&other.v1) | self.v2.ct_ne(&other.v2) |
-        self.v3.ct_ne(&other.v3) | self.v4.ct_ne(&other.v4) | self.v5.ct_ne(&other.v5)
+        self.a0.ct_ne(&other.a0) | self.a1.ct_ne(&other.a1) | self.a2.ct_ne(&other.a2) |
+        self.a3.ct_ne(&other.a3) | self.a4.ct_ne(&other.a4) | self.a5.ct_ne(&other.a5)
     }
 }
 
@@ -544,24 +549,24 @@ impl<BN: BNParam, const LIMBS: usize> Debug for BNFp12<BN, LIMBS> {
 
 impl<BN: BNParam, const LIMBS: usize> Display for BNFp12<BN, LIMBS> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if bool::from(self.v1.is_zero() &
-                      self.v2.is_zero() &
-                      self.v3.is_zero() &
-                      self.v4.is_zero() &
-                      self.v5.is_zero()) {
+        if bool::from(self.a1.is_zero() &
+                      self.a2.is_zero() &
+                      self.a3.is_zero() &
+                      self.a4.is_zero() &
+                      self.a5.is_zero()) {
             // element in F_{p^2}:
-            write!(f, "{}", self.v0)
-        } else if bool::from(self.v1.is_zero() & self.v2.is_zero() &
-                                    self.v4.is_zero() & self.v5.is_zero()) {
+            write!(f, "{}", self.a0)
+        } else if bool::from(self.a1.is_zero() & self.a2.is_zero() &
+                                    self.a4.is_zero() & self.a5.is_zero()) {
             // element in F_{p^4}:
-            write!(f, "({}) + ({})*z^3", self.v0, self.v3)
-        } else if bool::from(self.v1.is_zero() & self.v3.is_zero() & self.v5.is_zero()) {
+            write!(f, "({}) + ({})*z^3", self.a0, self.a3)
+        } else if bool::from(self.a1.is_zero() & self.a3.is_zero() & self.a5.is_zero()) {
             // element in F_{p^6}:
             write!(f, "({}) + ({})*z^2 + ({})*z^4",
-                   self.v0, self.v2, self.v4)
+                   self.a0, self.a2, self.a4)
         } else {
             write!(f, "({}) + ({})*z + ({})*z^2 + ({})*z^3 + ({})*z^4 + ({})*z^5",
-                self.v0, self.v1, self.v2, self.v3, self.v4, self.v5)
+                   self.a0, self.a1, self.a2, self.a3, self.a4, self.a5)
         }
     }
 }
@@ -584,8 +589,8 @@ impl<BN: BNParam, const LIMBS: usize> Mul<BNFp12<BN, LIMBS>> for Word {
     /// by a right factor from <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
     fn mul(self, rhs: BNFp12<BN, LIMBS>) -> Self::Output {
         Self::Output {
-            v0: self*rhs.v0, v1: self*rhs.v1, v2: self*rhs.v2,
-            v3: self*rhs.v3, v4: self*rhs.v4, v5: self*rhs.v5
+            a0: self*rhs.a0, a1: self*rhs.a1, a2: self*rhs.a2,
+            a3: self*rhs.a3, a4: self*rhs.a4, a5: self*rhs.a5
         }
     }
 }
@@ -597,8 +602,8 @@ impl<BN: BNParam, const LIMBS: usize> Mul<BNFp12<BN, LIMBS>> for Uint<LIMBS> {
     /// by a right factor from <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
     fn mul(self, rhs: BNFp12<BN, LIMBS>) -> Self::Output {
         Self::Output {
-            v0: self*rhs.v0, v1: self*rhs.v1, v2: self*rhs.v2,
-            v3: self*rhs.v3, v4: self*rhs.v4, v5: self*rhs.v5
+            a0: self*rhs.a0, a1: self*rhs.a1, a2: self*rhs.a2,
+            a3: self*rhs.a3, a4: self*rhs.a4, a5: self*rhs.a5
         }
     }
 }
@@ -610,8 +615,8 @@ impl<BN: BNParam, const LIMBS: usize> Mul<BNFp12<BN, LIMBS>> for BNFp<BN, LIMBS>
     /// by a right factor from <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
     fn mul(self, rhs: BNFp12<BN, LIMBS>) -> Self::Output {
         Self::Output {
-            v0: self*rhs.v0, v1: self*rhs.v1, v2: self*rhs.v2,
-            v3: self*rhs.v3, v4: self*rhs.v4, v5: self*rhs.v5
+            a0: self*rhs.a0, a1: self*rhs.a1, a2: self*rhs.a2,
+            a3: self*rhs.a3, a4: self*rhs.a4, a5: self*rhs.a5
         }
     }
 }
@@ -623,8 +628,8 @@ impl<BN: BNParam, const LIMBS: usize> Mul<BNFp12<BN, LIMBS>> for BNFp2<BN, LIMBS
     /// by a right factor from <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
     fn mul(self, rhs: BNFp12<BN, LIMBS>) -> Self::Output {
         Self::Output {
-            v0: self*rhs.v0, v1: self*rhs.v1, v2: self*rhs.v2,
-            v3: self*rhs.v3, v4: self*rhs.v4, v5: self*rhs.v5
+            a0: self*rhs.a0, a1: self*rhs.a1, a2: self*rhs.a2,
+            a3: self*rhs.a3, a4: self*rhs.a4, a5: self*rhs.a5
         }
     }
 }
@@ -635,12 +640,12 @@ impl<BN: BNParam, const LIMBS: usize> Mul<BNFp12<BN, LIMBS>> for BNFp4<BN, LIMBS
     /// Compute the product of a left factor from <i><b>F</b><sub>p&#x2074;</sub></i>
     /// by a right factor from <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub>.
     fn mul(self, rhs: BNFp12<BN, LIMBS>) -> Self::Output {
-        let u0 = self*BNFp4::from(rhs.v0, rhs.v3);
-        let u1 = self*BNFp4::from(rhs.v1, rhs.v4);
-        let u2 = self*BNFp4::from(rhs.v2, rhs.v5);
+        let u0 = self*BNFp4::from(rhs.a0, rhs.a3);
+        let u1 = self*BNFp4::from(rhs.a1, rhs.a4);
+        let u2 = self*BNFp4::from(rhs.a2, rhs.a5);
         Self::Output {
-            v0: u0.re, v1: u1.re, v2: u2.re,
-            v3: u0.im, v4: u1.im, v5: u2.im,
+            a0: u0.re, a1: u1.re, a2: u2.re,
+            a3: u0.im, a4: u1.im, a5: u2.im,
         }
     }
 }
@@ -649,36 +654,36 @@ impl<BN: BNParam, const LIMBS: usize> MulAssign for BNFp12<BN, LIMBS> {
     fn mul_assign(&mut self, rhs: Self) {
         // Karatsuba multiplication:
 
-        let d_00 = self.v0*rhs.v0;
-        let d_11 = self.v1*rhs.v1;
-        let d_22 = self.v2*rhs.v2;
-        let d_33 = self.v3*rhs.v3;
-        let d_44 = self.v4*rhs.v4;
-        let d_55 = self.v5*rhs.v5;
+        let d_00 = self.a0 *rhs.a0;
+        let d_11 = self.a1 *rhs.a1;
+        let d_22 = self.a2 *rhs.a2;
+        let d_33 = self.a3 *rhs.a3;
+        let d_44 = self.a4 *rhs.a4;
+        let d_55 = self.a5 *rhs.a5;
 
-        let d_01 = (self.v0 + self.v1)*(rhs.v0 + rhs.v1) - d_00 - d_11;
-        let d_02 = (self.v0 + self.v2)*(rhs.v0 + rhs.v2) - d_00 - d_22;
-        let d_04 = (self.v0 + self.v4)*(rhs.v0 + rhs.v4) - d_00 - d_44;
-        let d_13 = (self.v1 + self.v3)*(rhs.v1 + rhs.v3) - d_11 - d_33;
-        let d_15 = (self.v1 + self.v5)*(rhs.v1 + rhs.v5) - d_11 - d_55;
-        let d_23 = (self.v2 + self.v3)*(rhs.v2 + rhs.v3) - d_22 - d_33;
-        let d_24 = (self.v2 + self.v4)*(rhs.v2 + rhs.v4) - d_22 - d_44;
-        let d_35 = (self.v3 + self.v5)*(rhs.v3 + rhs.v5) - d_33 - d_55;
-        let d_45 = (self.v4 + self.v5)*(rhs.v4 + rhs.v5) - d_44 - d_55;
+        let d_01 = (self.a0 + self.a1)*(rhs.a0 + rhs.a1) - d_00 - d_11;
+        let d_02 = (self.a0 + self.a2)*(rhs.a0 + rhs.a2) - d_00 - d_22;
+        let d_04 = (self.a0 + self.a4)*(rhs.a0 + rhs.a4) - d_00 - d_44;
+        let d_13 = (self.a1 + self.a3)*(rhs.a1 + rhs.a3) - d_11 - d_33;
+        let d_15 = (self.a1 + self.a5)*(rhs.a1 + rhs.a5) - d_11 - d_55;
+        let d_23 = (self.a2 + self.a3)*(rhs.a2 + rhs.a3) - d_22 - d_33;
+        let d_24 = (self.a2 + self.a4)*(rhs.a2 + rhs.a4) - d_22 - d_44;
+        let d_35 = (self.a3 + self.a5)*(rhs.a3 + rhs.a5) - d_33 - d_55;
+        let d_45 = (self.a4 + self.a5)*(rhs.a4 + rhs.a5) - d_44 - d_55;
 
-        let d_03 = (self.v0 + self.v1 + self.v2 + self.v3)*(rhs.v0 + rhs.v1 + rhs.v2 + rhs.v3)
+        let d_03 = (self.a0 + self.a1 + self.a2 + self.a3)*(rhs.a0 + rhs.a1 + rhs.a2 + rhs.a3)
             - (d_00 + d_11 + d_22 + d_33 + d_01 + d_02 + d_13 + d_23);
-        let d_05 = (self.v0 + self.v1 + self.v4 + self.v5)*(rhs.v0 + rhs.v1 + rhs.v4 + rhs.v5)
+        let d_05 = (self.a0 + self.a1 + self.a4 + self.a5)*(rhs.a0 + rhs.a1 + rhs.a4 + rhs.a5)
             - (d_00 + d_11 + d_44 + d_55 + d_01 + d_04 + d_15 + d_45);
-        let d_25 = (self.v2 + self.v3 + self.v4 + self.v5)*(rhs.v2 + rhs.v3 + rhs.v4 + rhs.v5)
+        let d_25 = (self.a2 + self.a3 + self.a4 + self.a5)*(rhs.a2 + rhs.a3 + rhs.a4 + rhs.a5)
             - (d_22 + d_33 + d_44 + d_55 + d_23 + d_24 + d_35 + d_45);
 
-        self.v0 = (d_15 + d_24 + d_33).mul_xi() + d_00;
-        self.v1 = d_25.mul_xi() + d_01;
-        self.v2 = (d_35 + d_44).mul_xi() + d_02 + d_11;
-        self.v3 = d_45.mul_xi() + d_03;
-        self.v4 = d_55.mul_xi() + d_04 + d_13 + d_22;
-        self.v5 = d_05 + d_23;
+        self.a0 = (d_15 + d_24 + d_33).mul_xi() + d_00;
+        self.a1 = d_25.mul_xi() + d_01;
+        self.a2 = (d_35 + d_44).mul_xi() + d_02 + d_11;
+        self.a3 = d_45.mul_xi() + d_03;
+        self.a4 = d_55.mul_xi() + d_04 + d_13 + d_22;
+        self.a5 = d_05 + d_23;
     }
 }
 
@@ -687,8 +692,8 @@ impl<BN: BNParam, const LIMBS: usize> Neg for BNFp12<BN, LIMBS> {
 
     fn neg(self) -> Self::Output {
         Self::Output {
-            v0: -self.v0, v1: -self.v1, v2: -self.v2,
-            v3: -self.v3, v4: -self.v4, v5: -self.v5
+            a0: -self.a0, a1: -self.a1, a2: -self.a2,
+            a3: -self.a3, a4: -self.a4, a5: -self.a5
         }
     }
 }
@@ -697,18 +702,18 @@ impl<BN: BNParam, const LIMBS: usize> One for BNFp12<BN, LIMBS> {
     #[inline]
     fn one() -> Self {
         Self {
-            v0: BNFp2::one(), v1: BNFp2::zero(), v2: BNFp2::zero(),
-            v3: BNFp2::zero(), v4: BNFp2::zero(), v5: BNFp2::zero()
+            a0: BNFp2::one(), a1: BNFp2::zero(), a2: BNFp2::zero(),
+            a3: BNFp2::zero(), a4: BNFp2::zero(), a5: BNFp2::zero()
         }
     }
 
     fn is_one(&self) -> Choice {
-        self.v0.is_one() &
-        self.v1.is_zero() &
-        self.v2.is_zero() &
-        self.v3.is_zero() &
-        self.v4.is_zero() &
-        self.v5.is_zero()
+        self.a0.is_one() &
+        self.a1.is_zero() &
+        self.a2.is_zero() &
+        self.a3.is_zero() &
+        self.a4.is_zero() &
+        self.a5.is_zero()
     }
 }
 
@@ -722,17 +727,17 @@ impl<BN: BNParam, const LIMBS: usize> Random for BNFp12<BN, LIMBS> {
     /// Pick a uniform element from <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> by rejection sampling.
     fn random<R: RngCore + ?Sized>(rng: &mut R) -> Self {
         Self {
-            v0: BNFp2::random(rng),
-            v1: BNFp2::random(rng),
-            v2: BNFp2::random(rng),
-            v3: BNFp2::random(rng),
-            v4: BNFp2::random(rng),
-            v5: BNFp2::random(rng),
+            a0: BNFp2::random(rng),
+            a1: BNFp2::random(rng),
+            a2: BNFp2::random(rng),
+            a3: BNFp2::random(rng),
+            a4: BNFp2::random(rng),
+            a5: BNFp2::random(rng),
         }
     }
 
     /// Try to pick a uniform element from <b>F</b><sub><i>p&sup1;&#xFEFF;&sup2;</i></sub> by rejection sampling.
-    fn try_random<R: TryRngCore + ?Sized>(rng: &mut R) -> Result<Self, <R as TryRngCore>::Error> where R: TryRngCore {
+    fn try_random<R: TryRngCore + ?Sized>(rng: &mut R) -> Result<Self, R::Error> where R: TryRngCore {
         let try_v0 = match BNFp2::try_random(rng) {
             Ok(val) => Ok(val),
             Err(e) => Err(e),
@@ -763,7 +768,7 @@ impl<BN: BNParam, const LIMBS: usize> Random for BNFp12<BN, LIMBS> {
             Err(e) => Err(e),
         }?;
 
-        Ok(Self { v0: try_v0, v1: try_v1, v2: try_v2, v3: try_v3, v4: try_v4, v5: try_v5 })
+        Ok(Self { a0: try_v0, a1: try_v1, a2: try_v2, a3: try_v3, a4: try_v4, a5: try_v5 })
     }
 }
 
@@ -779,35 +784,35 @@ impl<BN: BNParam, const LIMBS: usize> Sub for BNFp12<BN, LIMBS> {
 
 impl<BN: BNParam, const LIMBS: usize> SubAssign for BNFp12<BN, LIMBS> {
     fn sub_assign(&mut self, rhs: Self) {
-        self.v0 -= rhs.v0;
-        self.v1 -= rhs.v1;
-        self.v2 -= rhs.v2;
-        self.v3 -= rhs.v3;
-        self.v4 -= rhs.v4;
-        self.v5 -= rhs.v5;
+        self.a0 -= rhs.a0;
+        self.a1 -= rhs.a1;
+        self.a2 -= rhs.a2;
+        self.a3 -= rhs.a3;
+        self.a4 -= rhs.a4;
+        self.a5 -= rhs.a5;
     }
 }
 
 impl<BN: BNParam, const LIMBS: usize> Zero for BNFp12<BN, LIMBS> {
     fn zero() -> Self {
         Self {
-            v0: BNFp2::zero(), v1: BNFp2::zero(), v2: BNFp2::zero(),
-            v3: BNFp2::zero(), v4: BNFp2::zero(), v5: BNFp2::zero()
+            a0: BNFp2::zero(), a1: BNFp2::zero(), a2: BNFp2::zero(),
+            a3: BNFp2::zero(), a4: BNFp2::zero(), a5: BNFp2::zero()
         }
     }
 
     fn is_zero(&self) -> Choice {
-        self.v0.is_zero() & self.v1.is_zero() & self.v2.is_zero() &
-        self.v3.is_zero() & self.v4.is_zero() & self.v5.is_zero()
+        self.a0.is_zero() & self.a1.is_zero() & self.a2.is_zero() &
+        self.a3.is_zero() & self.a4.is_zero() & self.a5.is_zero()
     }
 
     fn set_zero(&mut self) {
-        self.v0.set_zero();
-        self.v1.set_zero();
-        self.v2.set_zero();
-        self.v3.set_zero();
-        self.v4.set_zero();
-        self.v5.set_zero();
+        self.a0.set_zero();
+        self.a1.set_zero();
+        self.a2.set_zero();
+        self.a3.set_zero();
+        self.a4.set_zero();
+        self.a5.set_zero();
     }
 }
 
@@ -875,9 +880,9 @@ mod tests {
             //println!("|e12|_4 = {}", e12.norm4());
             //println!("|e12|_4 ? {}", e12*e12.conj(2)*e12.conj(4));
             let e12_conj_prod = e12*e12.conj2(2)*e12.conj2(4);
-            let w0 = BNFp4::from(e12_conj_prod.v0, e12_conj_prod.v3);
-            let w1 = BNFp4::from(e12_conj_prod.v1, e12_conj_prod.v4);
-            let w2 = BNFp4::from(e12_conj_prod.v2, e12_conj_prod.v5);
+            let w0 = BNFp4::from(e12_conj_prod.a0, e12_conj_prod.a3);
+            let w1 = BNFp4::from(e12_conj_prod.a1, e12_conj_prod.a4);
+            let w2 = BNFp4::from(e12_conj_prod.a2, e12_conj_prod.a5);
             //println!("|e12|_4 = e12*e12.conj(2)*e12.conj(4) ? {}", bool::from(w0.ct_eq(&e12.norm4()) & w1.is_zero() & w2.is_zero()));
             assert!(bool::from(w0.ct_eq(&e12.norm4()) & w1.is_zero() & w2.is_zero()));
 

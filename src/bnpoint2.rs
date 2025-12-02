@@ -8,13 +8,13 @@ use crate::bnzn::BNZn;
 use crate::traits::{BNField, One};
 use crypto_bigint::{Random, Uint, Zero};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
-use crypto_bigint::rand_core::TryRngCore;
-use rand::Rng;
+use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 /// The group <b>G&#x2082;</b> &#x2254; <i>E'</i>&lbrack;<i>n</i>&rbrack;(<b>F</b><sub><i>p&sup2;</i></sub>)
-/// of <b>F</b><sub><i>p&sup2;</i></sub>&thinsp;-rational <i>n</i>-torsion points on the curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub>.
+/// of <b>F</b><sub><i>p&sup2;</i></sub>&thinsp;-rational <i>n</i>-torsion points on the
+/// BN curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>.
 pub struct BNPoint2<BN: BNParam, const LIMBS: usize> {
     pub(crate) x: BNFp2<BN, LIMBS>,
     pub(crate) y: BNFp2<BN, LIMBS>,
@@ -401,7 +401,7 @@ impl<BN: BNParam, const LIMBS: usize> Add for BNPoint2<BN, LIMBS> {
 impl<BN: BNParam, const LIMBS: usize> AddAssign for BNPoint2<BN, LIMBS> {
 
     /// Complete elliptic point addition
-    /// for a BN curve <i>E</i>/<b>F</b><sub><i>p</i></sub> : <i>Y&sup2;Z</i> = <i>X&sup3; + bZ&sup3;</i>.
+    /// for a BN curve twist <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>bZ'&sup3;</i>.
     ///
     /// Reference:
     ///
@@ -607,7 +607,7 @@ impl<BN: BNParam, const LIMBS: usize> PartialEq<Self> for BNPoint2<BN, LIMBS> {
 impl<BN: BNParam, const LIMBS: usize> Random for BNPoint2<BN, LIMBS> {
     /// Pick a uniform point from the <i>n</i>-torsion of the BN curve twist
     /// <i>E'</i>/<b>F</b><sub><i>p&sup2;</i></sub> : <i>Y'&sup2;Z'</i> = <i>X'&sup3;</i> + <i>b'Z'&sup3;</i>.
-    fn random<R: Rng + ?Sized>(rng: &mut R) -> Self {
+    fn random<R: RngCore + ?Sized>(rng: &mut R) -> Self {
         Self::point_factory(BNFp2::random(rng)).elim_cof()
     }
 

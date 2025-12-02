@@ -6,7 +6,6 @@ use crate::traits::{BNField, One};
 use crypto_bigint::{Integer, Limb, NonZero, Random, Uint, Word, Zero};
 use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeLess};
-use rand::Rng;
 use sha3::{Shake128, Shake256};
 use sha3::digest::ExtendableOutput;
 use std::fmt::{Debug, Display, Formatter};
@@ -263,17 +262,20 @@ impl<BN: BNParam, const LIMBS: usize> BNField for BNZn<BN, LIMBS> {
         }
     }
 
-    /// Compute <i>`self`/2</i> mod <i>n</i>.
+    /// Compute `self`/2 mod <i>n</i>.
     ///
-    /// Technique: if the lift of <i>`self`</i> (either in plain or in Montgomery form)
+    /// Technique: if the lift of `self` (either in plain or in Montgomery form)
     /// to &Zopf; is even, a right-shift does the required division;
-    /// if it is odd, then <i>`self` + n</i> is even,
-    /// and <i>0</i> &leq; (<i>`self` + n</i>) >> <i>1</i> < <i>n</i> is the desired value.
+    /// if it is odd, then `self` + <i>n</i> is even,
+    /// and hence 0 &leq; (`self` + <i>n</i>) &gt;&gt; 1 =
+    /// (`self` &gt;&gt; 1) + (<i>n</i> + 1) &gt;&gt; 1 &lt; <i>n</i>
+    /// is the desired value.
     #[inline]
     fn half(&self) -> Self {
-        let n: Uint<LIMBS> = Uint::from_words(BN::ORDER.try_into().unwrap());
+        let hn: Uint<LIMBS> = (Uint::from_words(BN::ORDER.try_into().unwrap()) + Uint::ONE) >> 1;
+        let hs = self.0 >> 1;
         Self {
-            0: Uint::conditional_select(&self.0, &self.0.add(n), self.0.is_odd()) >> 1,
+            0: Uint::conditional_select(&hs, &hs.add(hn), self.0.is_odd()),
             1: Default::default(),
         }
     }
@@ -487,7 +489,10 @@ impl<BN: BNParam, const LIMBS: usize> Random for BNZn<BN, LIMBS> {
         let mut w: [Word; LIMBS] = [0; LIMBS];
         loop {
             // uniformly sample the bit capacity of the modulus:
-            rng.fill(&mut w);
+            //rng.fill(&mut w);  // deimplementing this useful function from crypto_bigint was a lusterless decision
+            for i in 0..LIMBS {
+                w[i] = rng.next_u64();
+            }
             w[top] &= mask;
             // rejection sampling for the most significant word:
             while w[top].cmp(&BN::ORDER[top]).is_gt() {  // this means the whole value exceeds the modulus
@@ -574,7 +579,6 @@ mod tests {
     use crate::bnparam::{BN062Param, BN126Param, BN190Param, BN254Param, BN318Param, BN382Param, BN446Param, BN510Param, BN574Param, BN638Param, BN702Param, BN766Param};
     use crypto_bigint::NonZero;
     use crypto_bigint::rand_core::RngCore;
-    use rand::Rng;
     use std::time::SystemTime;
     use super::*;
 
@@ -657,7 +661,10 @@ mod tests {
             //println!("k1*e1 ? {}", BNZn::from_word(k1)*e1);
             assert_eq!(k1*e1, BNZn::from_word(k1)*e1);
             let mut w1: [Word; LIMBS] = [0; LIMBS];
-            rng.fill(&mut w1);
+            //rng.fill(&mut w1);  // deimplementing this useful function from crypto_bigint was a lusterless decision
+            for i in 0..LIMBS {
+                w1[i] = rng.next_u64();
+            }
             let u1 = Uint::from_words(w1).rem(&nzp);
             //println!("u1 = {}", u1.to_string_radix_vartime(10));
             //println!("u1*e1 = {}", u1*e1);

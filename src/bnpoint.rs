@@ -7,8 +7,7 @@ use crate::bnzn::BNZn;
 use crate::traits::{BNField, One};
 use crypto_bigint::{Random, Uint, Zero};
 use crypto_bigint::subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
-use crypto_bigint::rand_core::TryRngCore;
-use rand::Rng;
+use crypto_bigint::rand_core::{RngCore, TryRngCore};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -496,7 +495,7 @@ impl<BN: BNParam, const LIMBS: usize> PartialEq<Self> for BNPoint<BN, LIMBS> {
 impl<BN: BNParam, const LIMBS: usize> Random for BNPoint<BN, LIMBS> {
     /// Pick a uniform point from the <i>n</i>-torsion of the BN curve
     /// <i>E/<b>F</b><sub>p</sub>: Y&sup2;Z = X&sup3; + bZ&sup3;</i>.
-    fn random<R: Rng + ?Sized>(rng: &mut R) -> Self {
+    fn random<R: RngCore + ?Sized>(rng: &mut R) -> Self {
         Self::point_factory(BNFp::random(rng))
     }
 
